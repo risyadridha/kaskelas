@@ -777,7 +777,7 @@ async function renderHomePage() {
         </div>
 
         <div class="stat-grid mb-16">
-            <div class="stat-card"><div class="stat-value">${formatRupiah(progress.lunasCount * (currentPeriod.frequency === 'weekly' ? WEEKLY_AMOUNT : MONTHLY_AMOUNT))}</div><div class="stat-label">Total Dibayar</div></div>
+            <div class="stat-card"><div class="stat-value">${formatRupiah(state.periods.filter(p => p.is_paid).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0))}</div><div class="stat-label">Total Dibayar</div></div>
             <div class="stat-card"><div class="stat-value" style="color:${totalUnpaid>0?'var(--danger)':'var(--success)'};">${formatRupiah(totalUnpaid)}</div><div class="stat-label">Tunggakan</div></div>
             <div class="stat-card"><div class="stat-value">${progress.lunasCount}</div><div class="stat-label">Periode Lunas</div></div>
             <div class="stat-card"><div class="stat-value">${progress.rate}%</div><div class="stat-label">Progress</div></div>
@@ -836,8 +836,9 @@ async function renderHomePage() {
 function renderKasSayaPage() {
     const user = getCurrentUser();
     const progress = calculateProgress(user.id);
-    const totalAmount = progress.totalPeriods * (CLASS_FREQUENCY === 'weekly' ? WEEKLY_AMOUNT : MONTHLY_AMOUNT);
-    const totalUnpaid = getUnpaidPeriods(user.id).reduce((sum, p) => sum + p.amount, 0);
+    const totalAmount = state.periods.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const totalPaid = state.periods.filter(p => p.is_paid).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const totalUnpaid = getUnpaidPeriods(user.id).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     return `
     ${renderHeader('Kas Saya', true)}
     <div class="container">
@@ -848,7 +849,7 @@ function renderKasSayaPage() {
             <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Tingkat Pembayaran: ${progress.rate}%</p>
         </div>
         <div class="stat-grid mb-16">
-            <div class="stat-card"><div class="stat-value">${formatRupiah(progress.lunasCount * (CLASS_FREQUENCY==='weekly'?WEEKLY_AMOUNT:MONTHLY_AMOUNT))}</div><div class="stat-label">Sudah Dibayar</div></div>
+            <div class="stat-card"><div class="stat-value">${formatRupiah(totalPaid)}</div><div class="stat-label">Sudah Dibayar</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--danger);">${formatRupiah(totalUnpaid)}</div><div class="stat-label">Tunggakan</div></div>
             <div class="stat-card"><div class="stat-value">${progress.lunasCount}</div><div class="stat-label">Periode Lunas</div></div>
             <div class="stat-card"><div class="stat-value">${getUnpaidPeriods(user.id).length}</div><div class="stat-label">Belum Bayar</div></div>
@@ -1508,7 +1509,8 @@ function renderStatistikPage() {
     const totalPaid = myTx.filter(t => t.status === 'berhasil').reduce((sum, t) => sum + t.amount, 0);
     const onTime = myTx.filter(t => t.status === 'berhasil').length;
     const rate = calculateProgress(user.id).rate;
-    return `${renderHeader('Statistik Pribadi', true)}<div class="container"><div class="stat-grid mb-16"><div class="stat-card"><div class="stat-value">${formatRupiah(totalPaid)}</div><div class="stat-label">Total</div></div><div class="stat-card"><div class="stat-value" style="color:var(--success);">${onTime}</div><div class="stat-label">Tepat Waktu</div></div><div class="stat-card"><div class="stat-value" style="color:var(--warning);">${myTx.filter(t=>t.status!=='berhasil').length}</div><div class="stat-label">Belum/Terlambat</div></div><div class="stat-card"><div class="stat-value">${rate}%</div><div class="stat-label">Rate</div></div></div><div class="card"><div class="card-header"><span class="card-title">Target</span></div><p>Target: <strong>${formatRupiah(state.periods.length*(CLASS_FREQUENCY==='weekly'?WEEKLY_AMOUNT:MONTHLY_AMOUNT))}</strong></p><div class="progress-bar mt-8"><div class="progress-fill success" style="width:${rate}%;"></div></div></div></div>`;
+    const targetTotal = state.periods.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    return `${renderHeader('Statistik Pribadi', true)}<div class="container"><div class="stat-grid mb-16"><div class="stat-card"><div class="stat-value">${formatRupiah(totalPaid)}</div><div class="stat-label">Total</div></div><div class="stat-card"><div class="stat-value" style="color:var(--success);">${onTime}</div><div class="stat-label">Tepat Waktu</div></div><div class="stat-card"><div class="stat-value" style="color:var(--warning);">${myTx.filter(t=>t.status!=='berhasil').length}</div><div class="stat-label">Belum/Terlambat</div></div><div class="stat-card"><div class="stat-value">${rate}%</div><div class="stat-label">Rate</div></div></div><div class="card"><div class="card-header"><span class="card-title">Target</span></div><p>Target: <strong>${formatRupiah(targetTotal)}</strong></p><div class="progress-bar mt-8"><div class="progress-fill success" style="width:${rate}%;"></div></div></div></div>`;
 }
 
 // ==================== PROFIL ====================

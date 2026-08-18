@@ -105,13 +105,13 @@ Status:
 
 # BATCH 5 — FINANCIAL LOGIC
 
-- [ ] B5-01 Database menjadi source of truth untuk nominal.
-- [ ] B5-02 Pending tidak dihitung income.
-- [ ] B5-03 Rejected tidak dihitung income.
-- [ ] B5-04 Approved dihitung income.
-- [ ] B5-05 Isi `payment_date`.
-- [ ] B5-06 Samakan perhitungan saldo frontend/backend.
-- [ ] B5-07 Tetapkan opening balance secara eksplisit.
+- [x] B5-01 Database menjadi source of truth untuk nominal.
+- [x] B5-02 Pending tidak dihitung income.
+- [x] B5-03 Rejected tidak dihitung income.
+- [x] B5-04 Approved dihitung income.
+- [x] B5-05 Isi `payment_date`.
+- [x] B5-06 Samakan perhitungan saldo frontend/backend.
+- [x] B5-07 Tetapkan opening balance secara eksplisit.
 
 
 # BATCH 6 — API CONTRACT

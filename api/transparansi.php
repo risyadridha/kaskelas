@@ -13,6 +13,9 @@ if (!$user) json_response(['error' => 'User tidak ditemukan'], 404);
 $classId = $user['class_id'];
 
 // Total pemasukan (berhasil)
+$openingBalance = 0.00; // Konsep opening balance diset secara eksplisit (default 0)
+
+// Total pemasukan (hanya transaksi berstatus berhasil)
 $stmt = $pdo->prepare("
     SELECT COALESCE(SUM(total_amount), 0) AS total_income
     FROM transactions
@@ -21,14 +24,15 @@ $stmt = $pdo->prepare("
     )
 ");
 $stmt->execute([$classId]);
-$income = $stmt->fetchColumn();
+$income = (float)$stmt->fetchColumn();
 
 // Total pengeluaran
 $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE class_id = ?");
 $stmt->execute([$classId]);
-$expense = $stmt->fetchColumn();
+$expense = (float)$stmt->fetchColumn();
 
-$balance = $income - $expense;
+// Ending Balance = Opening Balance + Approved Income - Approved Expenses
+$balance = $openingBalance + $income - $expense;
 
 // Data grafik bulanan (opsional)
 $monthlyIncome = array_fill(0, 12, 0);
@@ -55,6 +59,7 @@ while ($row = $stmt->fetch()) {
 }
 
 json_response([
+    'opening_balance' => $openingBalance,
     'total_income' => $income,
     'total_expense' => $expense,
     'balance' => $balance,
