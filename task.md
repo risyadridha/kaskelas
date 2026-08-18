@@ -116,12 +116,12 @@ Status:
 
 # BATCH 6 — API CONTRACT
 
-- [ ] B6-01 Tetapkan response transaction resmi.
-- [ ] B6-02 Konsistenkan `total_amount`.
-- [ ] B6-03 Konsistenkan `period_ids` / `period_label`.
-- [ ] B6-04 `proof` selalu object atau null.
-- [ ] B6-05 Return informasi class/user yang memang dibutuhkan frontend.
-- [ ] B6-06 Hilangkan legacy mapping yang tidak diperlukan.
+- [x] B6-01 Tetapkan response transaction resmi.
+- [x] B6-02 Konsistenkan `total_amount`.
+- [x] B6-03 Konsistenkan `period_ids` / `period_label`.
+- [x] B6-04 `proof` selalu object atau null.
+- [x] B6-05 Return informasi class/user yang memang dibutuhkan frontend.
+- [x] B6-06 Hilangkan legacy mapping yang tidak diperlukan.
 
 
 # BATCH 7 — BENDAHARA
