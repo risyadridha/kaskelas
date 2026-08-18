@@ -13,15 +13,15 @@ if (!$transactionId) {
     json_response(['error' => 'Transaksi tidak valid'], 400);
 }
 
-// Pastikan transaksi milik user dan status menunggu
+// Pastikan transaksi milik user dan status 'menunggu' atau 'ditolak'
 $stmt = $pdo->prepare("SELECT id, status FROM transactions WHERE id = ? AND user_id = ?");
 $stmt->execute([$transactionId, $userId]);
 $tx = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$tx) {
     json_response(['error' => 'Transaksi tidak ditemukan'], 404);
 }
-if ($tx['status'] !== 'menunggu') {
-    json_response(['error' => 'Transaksi tidak dalam status menunggu'], 400);
+if (!in_array($tx['status'], ['menunggu', 'ditolak'], true)) {
+    json_response(['error' => 'Transaksi tidak dalam status yang dapat diupload bukti'], 400);
 }
 
 if (!isset($_FILES['proof']) || $_FILES['proof']['error'] !== UPLOAD_ERR_OK) {
@@ -75,33 +75,69 @@ if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
     json_response(['error' => 'Gagal menyimpan file'], 500);
 }
 
-// Simpan hanya penanda internal; path filesystem tidak pernah dikirim ke client.
-$stmt = $pdo->prepare("
-    INSERT INTO payment_proofs (transaction_id, file_name, file_path, file_type, file_size)
-    VALUES (?, ?, ?, ?, ?)
-");
-$stmt->execute([
-    $transactionId,
-    $fileName,
-    'private/' . $fileName,
-    $safeMime,
-    $file['size']
-]);
+$pdo->beginTransaction();
+try {
+    if ($tx['status'] === 'ditolak') {
+        $submittedAt = date('Y-m-d H:i:s');
+        $stmt = $pdo->prepare("
+            UPDATE transactions
+            SET status = 'menunggu', rejection_reason = NULL, submitted_at = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$submittedAt, $transactionId]);
+    }
 
-// Tambah notifikasi
-$stmt = $pdo->prepare("
-    INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
-    VALUES (?, 'bukti_diterima', 'Bukti Pembayaran Diterima', ?, 'transaction', ?)
-");
-$message = "Bukti pembayaran untuk transaksi #{$transactionId} telah diupload.";
-$stmt->execute([$userId, $message, $transactionId]);
+    // Hapus bukti lama (file & DB record) jika transaksi sudah memiliki bukti sebelumnya
+    $stmtOld = $pdo->prepare("SELECT file_name FROM payment_proofs WHERE transaction_id = ?");
+    $stmtOld->execute([$transactionId]);
+    $oldProofs = $stmtOld->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($oldProofs as $oldP) {
+        $oldFilePath = $uploadDir . $oldP['file_name'];
+        if (file_exists($oldFilePath)) {
+            @unlink($oldFilePath);
+        }
+    }
+    $stmtDel = $pdo->prepare("DELETE FROM payment_proofs WHERE transaction_id = ?");
+    $stmtDel->execute([$transactionId]);
 
-// Tambah aktivitas
-$stmt = $pdo->prepare("
-    INSERT INTO activities (user_id, type, description, icon)
-    VALUES (?, 'upload_bukti', ?, '📤')
-");
-$stmt->execute([$userId, "Bukti pembayaran untuk transaksi #{$transactionId} diupload"]);
+    // Simpan hanya penanda internal; path filesystem tidak pernah dikirim ke client.
+    $stmt = $pdo->prepare("
+        INSERT INTO payment_proofs (transaction_id, file_name, file_path, file_type, file_size)
+        VALUES (?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $transactionId,
+        $fileName,
+        'private/' . $fileName,
+        $safeMime,
+        $file['size']
+    ]);
 
-json_response(['success' => true, 'file_name' => $fileName]);
+    // Tambah notifikasi
+    $stmt = $pdo->prepare("
+        INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
+        VALUES (?, 'bukti_diterima', 'Bukti Pembayaran Diterima', ?, 'transaction', ?)
+    ");
+    $message = "Bukti pembayaran untuk transaksi #{$transactionId} telah diupload.";
+    $stmt->execute([$userId, $message, $transactionId]);
+
+    // Tambah aktivitas
+    $stmt = $pdo->prepare("
+        INSERT INTO activities (user_id, type, description, icon)
+        VALUES (?, 'upload_bukti', ?, '📤')
+    ");
+    $stmt->execute([$userId, "Bukti pembayaran untuk transaksi #{$transactionId} diupload"]);
+
+    $pdo->commit();
+    json_response(['success' => true, 'file_name' => $fileName]);
+} catch (Exception $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    if (file_exists($uploadPath)) {
+        @unlink($uploadPath);
+    }
+    error_log($e->getMessage());
+    json_response(['error' => 'Gagal menyimpan data bukti pembayaran'], 500);
+}
 ?>

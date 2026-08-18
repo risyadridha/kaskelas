@@ -46,21 +46,21 @@ Status:
 
 # BATCH 2 — P1 PAYMENT INTEGRITY
 
-- [ ] B2-01 Duplicate payment + race condition
+- [x] B2-01 Duplicate payment + race condition
   - Lindungi user + period dari pembayaran ganda.
   - Gunakan transaction/locking/constraint yang tepat.
 
-- [ ] B2-02 Concurrent verification
+- [x] B2-02 Concurrent verification
   - Hanya satu request yang boleh mengubah status `menunggu`.
 
-- [ ] B2-03 Atomic proof upload
+- [x] B2-03 Atomic proof upload
   - File + DB record + notification/activity harus konsisten.
   - Cleanup file jika DB gagal.
 
-- [ ] B2-04 Rejected payment resubmit
+- [x] B2-04 Rejected payment resubmit
   - Implementasikan flow upload ulang dengan audit trail yang benar.
 
-- [ ] B2-05 API contract & base URL
+- [x] B2-05 API contract & base URL
   - Pisahkan konfigurasi API.
   - Konsistenkan response error JSON.
   - Jangan expose exception detail.
