@@ -69,8 +69,8 @@ CREATE TABLE `announcements` (
 --
 
 INSERT INTO `announcements` (`id`, `class_id`, `created_by`, `title`, `content`, `category`, `priority`, `published_at`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'Reminder Pembayaran Kas', 'Jangan lupa membayar kas tepat waktu.', 'kas', 'normal', '2026-08-16 20:19:35', '2026-08-16 13:19:35', '2026-08-16 13:19:35'),
-(2, 1, 1, 'Lomba Kebersihan Kelas', 'Kelas kita mengikuti lomba kebersihan.', 'informasi_kelas', 'important', '2026-08-16 20:19:35', '2026-08-16 13:19:35', '2026-08-16 13:19:35');
+(1, 2, 1, 'Reminder Pembayaran Kas', 'Jangan lupa membayar kas tepat waktu.', 'kas', 'normal', '2026-08-16 20:19:35', '2026-08-16 13:19:35', '2026-08-16 13:19:35'),
+(2, 2, 1, 'Lomba Kebersihan Kelas', 'Kelas kita mengikuti lomba kebersihan.', 'informasi_kelas', 'important', '2026-08-16 20:19:35', '2026-08-16 13:19:35', '2026-08-16 13:19:35');
 
 -- --------------------------------------------------------
 
@@ -183,7 +183,6 @@ CREATE TABLE `classes` (
 --
 
 INSERT INTO `classes` (`id`, `name`, `school_name`, `academic_year`, `created_at`, `updated_at`) VALUES
-(1, 'XII RPL 3', NULL, NULL, '2026-08-16 12:39:56', '2026-08-16 12:39:56'),
 (2, 'XII RPL 3', NULL, NULL, '2026-08-16 12:42:39', '2026-08-16 12:42:39');
 
 -- --------------------------------------------------------
@@ -211,8 +210,8 @@ CREATE TABLE `expenses` (
 --
 
 INSERT INTO `expenses` (`id`, `class_id`, `created_by`, `name`, `category`, `amount`, `description`, `expense_date`, `receipt_file`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 'Pembelian alat kebersihan', 'kebersihan', 75000.00, 'Pembelian sapu, pel, dan perlengkapan kebersihan kelas.', '2026-08-16', NULL, '2026-08-16 13:19:35', '2026-08-16 13:19:35'),
-(2, 1, 1, 'Dekorasi kelas', 'dekorasi', 150000.00, 'Pembelian kertas krep, balon, dan bahan dekorasi.', '2026-08-16', NULL, '2026-08-16 13:19:35', '2026-08-16 13:19:35');
+(1, 2, 1, 'Pembelian alat kebersihan', 'kebersihan', 75000.00, 'Pembelian sapu, pel, dan perlengkapan kebersihan kelas.', '2026-08-16', NULL, '2026-08-16 13:19:35', '2026-08-16 13:19:35'),
+(2, 2, 1, 'Dekorasi kelas', 'dekorasi', 150000.00, 'Pembelian kertas krep, balon, dan bahan dekorasi.', '2026-08-16', NULL, '2026-08-16 13:19:35', '2026-08-16 13:19:35');
 
 -- --------------------------------------------------------
 
@@ -412,7 +411,8 @@ CREATE TABLE `user_settings` (
 --
 
 INSERT INTO `user_settings` (`user_id`, `theme`, `language`, `payment_reminder`, `announcement_notif`, `sound_notif`, `email_notif`, `updated_at`) VALUES
-(1, 'light', 'id', 1, 1, 1, 0, '2026-08-17 02:04:33');
+(1, 'light', 'id', 1, 1, 1, 0, '2026-08-17 02:04:33'),
+(2, 'light', 'id', 1, 1, 1, 0, '2026-08-17 02:04:33');
 
 --
 -- Indexes for dumped tables

@@ -95,12 +95,12 @@ Status:
 
 # BATCH 4 — DATABASE CONSISTENCY
 
-- [ ] B4-01 Bersihkan duplicate class.
-- [ ] B4-02 Konsistenkan class_id seluruh seed data.
-- [ ] B4-03 Pastikan user, period, expense, announcement berada pada class yang benar.
-- [ ] B4-04 Pastikan transaction owner class dan period class konsisten.
-- [ ] B4-05 Perbaiki seed agar tidak memakai `LIMIT 1`.
-- [ ] B4-06 Pastikan user_settings seed sesuai user.
+- [x] B4-01 Bersihkan duplicate class.
+- [x] B4-02 Konsistenkan class_id seluruh seed data.
+- [x] B4-03 Pastikan user, period, expense, announcement berada pada class yang benar.
+- [x] B4-04 Pastikan transaction owner class dan period class konsisten.
+- [x] B4-05 Perbaiki seed agar tidak memakai `LIMIT 1`.
+- [x] B4-06 Pastikan user_settings seed sesuai user.
 
 
 # BATCH 5 — FINANCIAL LOGIC
