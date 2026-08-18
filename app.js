@@ -1,4 +1,5 @@
 // ==================== KONFIGURASI & DATA ====================
+const API_BASE_URL = window.KASKELAS_API_BASE_URL || 'api/';
 const CLASS_FREQUENCY = 'weekly';
 const WEEKLY_AMOUNT = 3000;
 const MONTHLY_AMOUNT = 10000;
@@ -203,7 +204,7 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
     const options = { method, headers: {} };
     if (method !== 'GET' && method !== 'HEAD') {
         if (!csrfToken) {
-            const csrfRes = await fetch('api/csrf.php', { credentials: 'same-origin' });
+            const csrfRes = await fetch(API_BASE_URL + 'csrf.php', { credentials: 'same-origin' });
             const csrfData = await csrfRes.json();
             if (!csrfRes.ok || !csrfData.csrf_token) throw new Error('CSRF token tidak tersedia');
             csrfToken = csrfData.csrf_token;
@@ -218,7 +219,7 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
     }
 
     options.credentials = 'same-origin';
-    const res = await fetch('api/' + endpoint, options);
+    const res = await fetch(API_BASE_URL + endpoint, options);
     const text = await res.text();
 
     let json;
@@ -1042,32 +1043,33 @@ async function processPayment() {
 // ==================== UPLOAD BUKTI ====================
 function renderUploadBuktiPage() {
     const user = getCurrentUser();
-    const pendingTxs = state.transactions.filter(t => t.user_id === user.id && t.status === 'menunggu' && !t.proof);
-    if (pendingTxs.length === 0) {
-        return `${renderHeader('Upload Bukti', true)}<div class="container"><div class="empty-state"><div class="empty-icon">📤</div><div class="empty-title">Tidak ada pembayaran menunggu</div><button class="btn btn-primary mt-16" onclick="navigateTo('pembayaran')">Bayar Kas</button></div></div>`;
+    const uploadableTxs = state.transactions.filter(t => (t.user_id === user.id || t.studentId === user.id) && (t.status === 'menunggu' || t.status === 'ditolak'));
+    if (uploadableTxs.length === 0) {
+        return `${renderHeader('Upload Bukti', true)}<div class="container"><div class="empty-state"><div class="empty-icon">📤</div><div class="empty-title">Tidak ada pembayaran yang perlu bukti</div><button class="btn btn-primary mt-16" onclick="navigateTo('pembayaran')">Bayar Kas</button></div></div>`;
     }
-    if (!state.selectedUploadTxId || !pendingTxs.some(t => t.id === state.selectedUploadTxId)) {
-        state.selectedUploadTxId = pendingTxs[0].id;
+    if (!state.selectedUploadTxId || !uploadableTxs.some(t => String(t.id) === String(state.selectedUploadTxId))) {
+        state.selectedUploadTxId = uploadableTxs[0].id;
     }
-    const selectedTx = pendingTxs.find(t => t.id === state.selectedUploadTxId);
+    const selectedTx = uploadableTxs.find(t => String(t.id) === String(state.selectedUploadTxId));
     return `
     ${renderHeader('Upload Bukti', true)}
     <div class="container">
-        ${pendingTxs.length > 1 ? `
+        ${uploadableTxs.length > 1 ? `
         <div class="card mb-16">
             <div class="card-header"><span class="card-title">Pilih Transaksi</span></div>
-            ${pendingTxs.map(tx => `
-                <div class="list-item ${state.selectedUploadTxId === tx.id ? 'active' : ''}" onclick="state.selectedUploadTxId='${tx.id}';renderPage()">
+            ${uploadableTxs.map(tx => `
+                <div class="list-item ${String(state.selectedUploadTxId) === String(tx.id) ? 'active' : ''}" onclick="state.selectedUploadTxId='${tx.id}';renderPage()">
                     <span>💳</span>
                     <div class="item-info"><div class="item-title">${tx.periodLabel || tx.period_label || 'Periode'}</div><div class="item-subtitle">${tx.id} • ${formatRupiah(tx.amount)}</div></div>
-                    ${state.selectedUploadTxId === tx.id ? '<span style="color:var(--primary);font-weight:700;">✓</span>' : ''}
+                    ${String(state.selectedUploadTxId) === String(tx.id) ? '<span style="color:var(--primary);font-weight:700;">✓</span>' : ''}
                 </div>`).join('')}
         </div>` : ''}
         <div class="card mb-16">
             <p>Periode: <strong>${selectedTx.periodLabel || selectedTx.period_label || 'Periode'}</strong></p>
             <p>Nominal: <strong>${formatRupiah(selectedTx.amount)}</strong></p>
             <p>Metode: <strong>${selectedTx.method.toUpperCase()}</strong></p>
-            <span class="badge badge-warning">Menunggu Verifikasi</span>
+            <span class="badge ${selectedTx.status === 'ditolak' ? 'badge-danger' : 'badge-warning'}">${selectedTx.status === 'ditolak' ? 'Ditolak (Upload Ulang)' : 'Menunggu Verifikasi'}</span>
+            ${selectedTx.rejectionReason ? `<div style="margin-top:8px;padding:8px;background:var(--danger-bg);border-radius:6px;font-size:12px;color:var(--danger);">Alasan Penolakan: ${selectedTx.rejectionReason}</div>` : ''}
         </div>
         <div class="card">
             <div class="upload-zone" onclick="document.getElementById('fileInput').click()"><div class="upload-icon">📸</div><p>Klik untuk pilih file</p><p style="font-size:11px;color:var(--text-muted);">JPG, PNG, PDF (Maks 5MB)</p></div>

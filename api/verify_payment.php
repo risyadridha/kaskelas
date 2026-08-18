@@ -30,11 +30,12 @@ try {
     $tx = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$tx) throw new RuntimeException('Transaksi tidak ditemukan');
 
+    $paymentDate = $newStatus === 'berhasil' ? $verifiedAt : null;
     $stmt = $pdo->prepare("
-        UPDATE transactions SET status = ?, verified_at = ?, verified_by = ?, rejection_reason = ?
+        UPDATE transactions SET status = ?, verified_at = ?, verified_by = ?, rejection_reason = ?, payment_date = ?
         WHERE id = ? AND status = 'menunggu'
     ");
-    $stmt->execute([$newStatus, $verifiedAt, $verifiedBy, $reason, $transactionId]);
+    $stmt->execute([$newStatus, $verifiedAt, $verifiedBy, $reason, $paymentDate, $transactionId]);
     if ($stmt->rowCount() !== 1) throw new RuntimeException('Transaksi sudah diverifikasi sebelumnya');
 
     // Tambah notifikasi ke siswa
