@@ -25,6 +25,20 @@ if (empty($username) || empty($password)) {
     json_response(['error' => 'Username dan password wajib diisi'], 400);
 }
 
+// Sederhana rate limiting berbasis session (maksimal 5 percobaan gagal per 5 menit)
+$ipKey = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$now = time();
+if (!isset($_SESSION['login_attempts'])) {
+    $_SESSION['login_attempts'] = [];
+}
+$attempts = $_SESSION['login_attempts'][$ipKey] ?? ['count' => 0, 'first_attempt' => $now];
+if ($now - $attempts['first_attempt'] > 300) {
+    $attempts = ['count' => 0, 'first_attempt' => $now];
+}
+if ($attempts['count'] >= 5) {
+    json_response(['error' => 'Terlalu banyak percobaan login gagal. Silakan coba lagi dalam 5 menit.'], 429);
+}
+
 // Query dengan JOIN untuk mendapatkan nama dan status
 $stmt = $pdo->prepare("
     SELECT u.id, u.username, u.password_hash, u.role, u.email, u.status,
@@ -48,6 +62,7 @@ if ($user && password_verify($password, $user['password_hash'])) {
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['role'] = $user['role'];
 
+    unset($_SESSION['login_attempts'][$ipKey]);
     json_response([
         'success' => true,
         'user' => [
@@ -59,6 +74,8 @@ if ($user && password_verify($password, $user['password_hash'])) {
         ]
     ]);
 } else {
+    $attempts['count']++;
+    $_SESSION['login_attempts'][$ipKey] = $attempts;
     json_response(['error' => 'Username atau password salah'], 401);
 }
 ?>

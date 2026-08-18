@@ -16,17 +16,40 @@ if (!$user) json_response(['error' => 'User tidak ditemukan'], 404);
 $classId = $user['class_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // List pengeluaran untuk kelas user
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 20;
+    $offset = ($page - 1) * $limit;
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM expenses WHERE class_id = ?");
+    $stmt->execute([$classId]);
+    $total = (int)$stmt->fetchColumn();
+
+    // List pengeluaran untuk kelas user dengan kolom spesifik (ganti SELECT *)
     $stmt = $pdo->prepare("
-        SELECT e.*, u.username AS created_by_name
+        SELECT e.id, e.class_id, e.created_by, e.name, e.category, e.amount,
+               e.description, e.expense_date, e.receipt_file, e.created_at,
+               u.username AS created_by_name
         FROM expenses e
         JOIN users u ON u.id = e.created_by
         WHERE e.class_id = ?
         ORDER BY e.expense_date DESC
+        LIMIT ? OFFSET ?
     ");
-    $stmt->execute([$classId]);
+    $stmt->bindValue(1, $classId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    json_response(['expenses' => $expenses]);
+
+    json_response([
+        'expenses' => $expenses,
+        'pagination' => [
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => ceil($total / $limit)
+        ]
+    ]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

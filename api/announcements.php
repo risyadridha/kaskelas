@@ -32,9 +32,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
+    $data = json_decode(file_get_contents('php://input'), true);
+    $action = $data['action'] ?? '';
+
+    if ($action === 'mark_read') {
+        $announcementId = $data['announcement_id'] ?? null;
+        if (!$announcementId) json_response(['error' => 'Announcement ID required'], 400);
+
+        // Verifikasi pengumuman milik class_id user
+        $stmt = $pdo->prepare("SELECT id FROM announcements WHERE id = ? AND class_id = ?");
+        $stmt->execute([$announcementId, $classId]);
+        if (!$stmt->fetch()) json_response(['error' => 'Pengumuman tidak ditemukan'], 404);
+
+        // Insert ke announcement_reads jika belum ada
+        $stmt = $pdo->prepare("
+            INSERT IGNORE INTO announcement_reads (announcement_id, user_id)
+            VALUES (?, ?)
+        ");
+        $stmt->execute([$announcementId, $userId]);
+        json_response(['success' => true]);
+    }
+
     if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
 
-    $data = json_decode(file_get_contents('php://input'), true);
     $title = $data['title'] ?? '';
     $content = $data['content'] ?? '';
     $category = $data['category'] ?? 'informasi_kelas';

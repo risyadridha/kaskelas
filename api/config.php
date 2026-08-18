@@ -20,7 +20,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '',
+        'secure' => $isSecure,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    session_start();
+}
 header('Content-Type: application/json; charset=utf-8');
 
 $localConfig = __DIR__ . '/config.local.php';
