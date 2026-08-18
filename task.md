@@ -68,27 +68,27 @@ Status:
 
 # BATCH 3 — P2 DATA & HIGH PRIORITY
 
-- [ ] B3-01 Notification read
+- [x] B3-01 Notification read
   - Individual read + ownership.
 
-- [ ] B3-02 Announcement read
+- [x] B3-02 Announcement read
   - Persist `announcement_reads`.
 
-- [ ] B3-03 XSS protection
+- [x] B3-03 XSS protection
   - Escape seluruh data server sebelum masuk HTML.
   - Fokus pada nama, pengumuman, expense, rejection reason, notification, filename.
 
-- [ ] B3-04 Login/session hardening
+- [x] B3-04 Login/session hardening
   - Rate limiting.
   - Secure cookie.
   - Logout cookie invalidation.
 
-- [ ] B3-05 Query optimization
+- [x] B3-05 Query optimization
   - N+1 students.
   - Correlated transaction queries.
   - Ganti SELECT * yang jelas tidak diperlukan.
 
-- [ ] B3-06 Pagination
+- [x] B3-06 Pagination
   - Prioritas: transactions, notifications, expenses, reports.
   - Tambahkan sisanya bila memang diperlukan.
 
