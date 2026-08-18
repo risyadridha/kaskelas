@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>KasKelas - Manajemen Kas Kelas</title>
+    <link rel="stylesheet" href="app.css?v=20260818-2">
+</head>
+<body>
+    <div class="app-shell" id="app">
+        <div class="offline-banner" id="offlineBanner">📡 Anda sedang offline</div>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">KasKelas</div>
+            <nav class="sidebar-nav" id="sidebarNav">
+                <p class="nav-group-label">Utama</p>
+                <button class="nav-item" data-page="home"><span class="nav-icon">🏠</span> Dashboard</button>
+                <button class="nav-item" data-page="kas-saya"><span class="nav-icon">💰</span> Kas Saya</button>
+                <button class="nav-item" data-page="pembayaran"><span class="nav-icon">💳</span> Bayar Kas</button>
+                <p class="nav-group-label">Keuangan</p>
+                <button class="nav-item" data-page="riwayat"><span class="nav-icon">📋</span> Riwayat</button>
+                <button class="nav-item" data-page="tunggakan"><span class="nav-icon">⚠️</span> Tunggakan</button>
+                <button class="nav-item" data-page="transparansi"><span class="nav-icon">📊</span> Transparansi</button>
+                <button class="nav-item" data-page="verifikasi"><span class="nav-icon">✅</span> Verifikasi</button>
+                <button class="nav-item" data-page="pengeluaran"><span class="nav-icon">💸</span> Pengeluaran</button>
+                <p class="nav-group-label">Informasi</p>
+                <button class="nav-item" data-page="pengumuman"><span class="nav-icon">📢</span> Pengumuman</button>
+                <button class="nav-item" data-page="notifikasi"><span class="nav-icon">🔔</span> Notifikasi</button>
+                <p class="nav-group-label nav-group-account">Akun</p>
+                <button class="nav-item" data-page="profil"><span class="nav-icon">👤</span> Profil</button>
+                <button class="nav-item" data-page="pengaturan"><span class="nav-icon">⚙️</span> Pengaturan</button>
+            </nav>
+        </aside>
+        <div class="main-content" id="mainContent">
+            <div id="pageContent"></div>
+        </div>
+        <nav class="bottom-nav" id="bottomNav">
+            <button class="nav-item" data-page="home"><span class="nav-icon">🏠</span> Home</button>
+            <button class="nav-item" data-page="kas-saya"><span class="nav-icon">💰</span> Kas</button>
+            <button class="nav-item" data-page="riwayat"><span class="nav-icon">📋</span> Riwayat</button>
+            <button class="nav-item" data-page="notifikasi"><span class="nav-icon">🔔</span> Notif</button>
+            <button class="nav-item" data-page="profil"><span class="nav-icon">👤</span> Profil</button>
+        </nav>
+        <div class="bottom-sheet-overlay" id="bsOverlay"></div>
+        <div class="bottom-sheet" id="bottomSheet"><div class="bottom-sheet-handle"></div><div id="bsContent"></div></div>
+        <div class="modal-overlay" id="modalOverlay"><div class="modal-box" id="modalBox"></div></div>
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <script src="app.js?v=20260818-2"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<?php
+// Salin file ini menjadi config.local.php dan isi credential server lokal.
+return [
+    'db_host' => 'localhost',
+    'db_name' => 'kaskelas',
+    'db_user' => 'CHANGE_ME',
+    'db_pass' => 'CHANGE_ME',
+    'proof_storage_dir' => 'C:/xampp/kaskelas-proofs',
+];
