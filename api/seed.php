@@ -66,6 +66,25 @@ if (!$user) {
     }
 }
 
+// 5. Buat user_settings untuk bendahara dan siswa jika belum ada
+$usersForSettings = [
+    $bendaharaUsername,
+    $siswaUsername
+];
+foreach ($usersForSettings as $uname) {
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+    $stmt->execute([$uname]);
+    $uRow = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($uRow) {
+        $uId = $uRow['id'];
+        $stmt = $pdo->prepare("
+            INSERT IGNORE INTO user_settings (user_id, theme, language, payment_reminder, announcement_notif, sound_notif, email_notif)
+            VALUES (?, 'light', 'id', 1, 1, 1, 0)
+        ");
+        $stmt->execute([$uId]);
+    }
+}
+
 echo "Seed selesai. Class ID: $classId\n";
 echo "Login siswa: username 'risyad', password 'password123'\n";
 echo "Login bendahara: username 'bendahara', password 'bendahara123'\n";
