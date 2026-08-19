@@ -268,6 +268,7 @@ async function loadDataFromServer() {
 
         if (userRes.user) {
             state.currentUserData = userRes.user;
+            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'XII RPL 3';
             state.currentUser = userRes.user.id;
             state.role = userRes.user.role;
         }
@@ -421,6 +422,7 @@ async function loadDashboardData() {
 
         if (userRes.user) {
             state.currentUserData = userRes.user;
+            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'XII RPL 3';
             state.currentUser = userRes.user.id;
             state.role = userRes.user.role;
         }

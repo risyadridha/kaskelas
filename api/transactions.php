@@ -24,9 +24,13 @@ if ($role === 'bendahara') {
         SELECT t.id,
                t.transaction_code,
                t.user_id,
+               t.total_amount,
                t.total_amount AS amount,
                t.status,
                t.method,
+               t.rejection_reason,
+               t.payment_date,
+               t.verified_at,
                t.created_at,
                COALESCE(s.full_name, u.username) AS student_name,
                GROUP_CONCAT(DISTINCT cp.name ORDER BY cp.id SEPARATOR ', ') AS period_label,
@@ -50,7 +54,7 @@ if ($role === 'bendahara') {
             ) pp2 ON pp1.id = pp2.max_id
         ) pp ON pp.transaction_id = t.id
         WHERE u.class_id = (SELECT class_id FROM users WHERE id = ?)
-        GROUP BY t.id, t.transaction_code, t.user_id, t.total_amount, t.status, t.method, t.created_at, student_name, pp.id, pp.file_name, pp.file_type, pp.file_size
+        GROUP BY t.id, t.transaction_code, t.user_id, t.total_amount, t.status, t.method, t.rejection_reason, t.payment_date, t.verified_at, t.created_at, student_name, pp.id, pp.file_name, pp.file_type, pp.file_size
         ORDER BY t.created_at DESC
         LIMIT ? OFFSET ?
     ");
@@ -67,9 +71,13 @@ if ($role === 'bendahara') {
         SELECT t.id,
                t.transaction_code,
                t.user_id,
+               t.total_amount,
                t.total_amount AS amount,
                t.status,
                t.method,
+               t.rejection_reason,
+               t.payment_date,
+               t.verified_at,
                t.created_at,
                COALESCE(s.full_name, u.username) AS student_name,
                GROUP_CONCAT(DISTINCT cp.name ORDER BY cp.id SEPARATOR ', ') AS period_label,
@@ -93,7 +101,7 @@ if ($role === 'bendahara') {
             ) pp2 ON pp1.id = pp2.max_id
         ) pp ON pp.transaction_id = t.id
         WHERE t.user_id = ?
-        GROUP BY t.id, t.transaction_code, t.user_id, t.total_amount, t.status, t.method, t.created_at, student_name, pp.id, pp.file_name, pp.file_type, pp.file_size
+        GROUP BY t.id, t.transaction_code, t.user_id, t.total_amount, t.status, t.method, t.rejection_reason, t.payment_date, t.verified_at, t.created_at, student_name, pp.id, pp.file_name, pp.file_type, pp.file_size
         ORDER BY t.created_at DESC
         LIMIT ? OFFSET ?
     ");
@@ -107,6 +115,11 @@ $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Proses hasil
 foreach ($transactions as &$t) {
+    $t['id'] = (int)$t['id'];
+    $t['user_id'] = (int)$t['user_id'];
+    $t['total_amount'] = (float)$t['total_amount'];
+    $t['amount'] = (float)$t['amount'];
+
     if (!empty($t['period_ids'])) {
         $t['period_ids'] = array_map('intval', explode(',', $t['period_ids']));
     } else {
@@ -116,6 +129,7 @@ foreach ($transactions as &$t) {
     if (!empty($t['proof_file'])) {
         $t['proof'] = [
             'id' => (int)$t['proof_id'],
+            'filename' => $t['proof_file'],
             'file_name' => $t['proof_file'],
             'file_type' => $t['proof_type'],
             'file_size' => (int)$t['proof_size'],

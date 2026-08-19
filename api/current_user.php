@@ -6,10 +6,11 @@ require 'helpers.php';
 require_login();
 
 $stmt = $pdo->prepare("
-    SELECT u.id, u.username, u.role, u.email, u.phone,
+    SELECT u.id, u.class_id, c.name AS class_name, u.username, u.role, u.email, u.phone,
            COALESCE(s.full_name, u.username) AS name,
            s.nis, s.attendance_number
     FROM users u
+    LEFT JOIN classes c ON c.id = u.class_id
     LEFT JOIN students s ON s.user_id = u.id
     WHERE u.id = ?
 ");
