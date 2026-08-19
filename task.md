@@ -126,16 +126,16 @@ Status:
 
 # BATCH 7 — BENDAHARA
 
-- [ ] B7-01 CRUD periode/tagihan.
-- [ ] B7-02 Update cash settings.
-- [ ] B7-03 Edit/delete pengeluaran.
-- [ ] B7-04 Edit/delete pengumuman.
-- [ ] B7-05 Kelola anggota.
-- [ ] B7-06 Protected proof view/download.
-- [ ] B7-07 Kelola/respons laporan.
-- [ ] B7-08 Statistik bendahara.
-- [ ] B7-09 Audit log.
-- [ ] B7-10 Notification broadcast per class.
+- [x] B7-01 CRUD periode/tagihan.
+- [x] B7-02 Update cash settings.
+- [x] B7-03 Edit/delete pengeluaran.
+- [x] B7-04 Edit/delete pengumuman.
+- [x] B7-05 Kelola anggota.
+- [x] B7-06 Protected proof view/download.
+- [x] B7-07 Kelola/respons laporan.
+- [x] B7-08 Statistik bendahara.
+- [x] B7-09 Audit log.
+- [x] B7-10 Notification broadcast per class.
 
 
 # BATCH 8 — FRONTEND CLEANUP
