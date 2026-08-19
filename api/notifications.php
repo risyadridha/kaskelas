@@ -11,7 +11,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
     $action = $data['action'] ?? '';
 
-    if ($action === 'mark_read') {
+    if ($action === 'broadcast') {
+        require_role('bendahara');
+        $title = trim($data['title'] ?? '');
+        $message = trim($data['message'] ?? '');
+        $type = $data['type'] ?? 'info';
+
+        if (empty($title) || empty($message)) {
+            json_response(['error' => 'Judul dan pesan wajib diisi'], 400);
+        }
+
+        // Ambil class_id bendahara
+        $stmt = $pdo->prepare("SELECT class_id FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $classId = $stmt->fetchColumn();
+
+        // Ambil semua user aktif di kelas tersebut
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE class_id = ? AND status = 'active'");
+        $stmt->execute([$classId]);
+        $targetUsers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $pdo->beginTransaction();
+        try {
+            $insertStmt = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, message, reference_type)
+                VALUES (?, ?, ?, ?, 'broadcast')
+            ");
+            foreach ($targetUsers as $targetId) {
+                $insertStmt->execute([$targetId, $type, $title, $message]);
+            }
+            $pdo->commit();
+
+            if (function_exists('log_audit')) {
+                log_audit($pdo, $userId, 'broadcast_notification', 'notifications', null, "Broadcast notifikasi: $title ke kelas $classId");
+            }
+
+            json_response(['success' => true, 'count' => count($targetUsers)]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            json_response(['error' => 'Gagal mengirim broadcast notifikasi'], 500);
+        }
+    } elseif ($action === 'mark_read') {
         $notificationId = $data['notification_id'] ?? null;
         if (!$notificationId) {
             json_response(['error' => 'Notification ID required'], 400);
