@@ -44,11 +44,18 @@ try {
     }
 
     $placeholders = implode(',', array_fill(0, count($periodIds), '?'));
-    $stmt = $pdo->prepare("SELECT id, amount, name FROM cash_periods WHERE class_id = ? AND id IN ($placeholders) ORDER BY id FOR UPDATE");
+    $stmt = $pdo->prepare("SELECT id, amount, name, start_date, due_date FROM cash_periods WHERE class_id = ? AND id IN ($placeholders) ORDER BY id FOR UPDATE");
     $stmt->execute(array_merge([$user['class_id']], $periodIds));
     $validPeriods = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (count($validPeriods) !== count($periodIds)) {
         throw new RuntimeException('Periode tidak valid');
+    }
+
+    $todayStr = date('Y-m-d');
+    foreach ($validPeriods as $period) {
+        if (!empty($period['start_date']) && $period['start_date'] > $todayStr) {
+            throw new RuntimeException("Periode {$period['name']} belum dapat dibayar (periode masa depan)");
+        }
     }
 
     $totalAmount = 0;

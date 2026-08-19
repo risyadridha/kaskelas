@@ -66,9 +66,10 @@ $stmtMembers->execute([$classId]);
 $memberCount = (int)$stmtMembers->fetchColumn();
 
 // 5. Total Tunggakan & Jumlah Siswa Menunggak
-// Hitung per siswa active di kelas ini
-$stmtPeriods = $pdo->prepare("SELECT id, amount FROM cash_periods WHERE class_id = ?");
-$stmtPeriods->execute([$classId]);
+// Hitung per siswa active di kelas ini hanya untuk periode yang sudah berjalan (start_date <= today)
+$todayStr = date('Y-m-d');
+$stmtPeriods = $pdo->prepare("SELECT id, amount FROM cash_periods WHERE class_id = ? AND start_date <= ?");
+$stmtPeriods->execute([$classId, $todayStr]);
 $periods = $stmtPeriods->fetchAll(PDO::FETCH_ASSOC);
 $totalPeriods = count($periods);
 
