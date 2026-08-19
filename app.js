@@ -299,17 +299,18 @@ async function loadDataFromServer() {
                 studentId: t.user_id,
                 studentName: t.student_name,
                 periodId: t.period_id,
-                periodIds: t.period_ids ? (Array.isArray(t.period_ids) ? t.period_ids : t.period_ids.split(',').map(Number)) : [],
+                periodIds: t.period_ids ? (Array.isArray(t.period_ids) ? t.period_ids : String(t.period_ids).split(',').map(Number)) : [],
                 periodLabel: t.period_label || '',
-                frequency: t.frequency || CLASS_FREQUENCY,
-                amount: parseFloat(t.amount || t.total_amount),
+                frequency: t.frequency || state.cashSettings.frequency,
+                amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
+                total_amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
                 method: t.method,
                 date: t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
                 dateObj: new Date(t.created_at || new Date()),
                 status: t.status,
                 proof: t.proof ? {
                     id: t.proof.id,
-                    file_name: t.proof.file_name,
+                    file_name: t.proof.file_name || t.proof.filename,
                     file_type: t.proof.file_type,
                     file_size: t.proof.file_size,
                     url: t.proof.url
@@ -462,17 +463,18 @@ async function loadDashboardData() {
                 studentId: t.user_id,
                 studentName: t.student_name,
                 periodId: t.period_id,
-                periodIds: t.period_ids ? (Array.isArray(t.period_ids) ? t.period_ids : t.period_ids.split(',').map(Number)) : [],
+                periodIds: t.period_ids ? (Array.isArray(t.period_ids) ? t.period_ids : String(t.period_ids).split(',').map(Number)) : [],
                 periodLabel: t.period_label || '',
-                frequency: t.frequency || CLASS_FREQUENCY,
-                amount: parseFloat(t.amount || t.total_amount),
+                frequency: t.frequency || state.cashSettings.frequency,
+                amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
+                total_amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
                 method: t.method,
                 date: t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
                 dateObj: new Date(t.created_at || new Date()),
                 status: t.status,
                 proof: t.proof ? {
                     id: t.proof.id,
-                    file_name: t.proof.file_name,
+                    file_name: t.proof.file_name || t.proof.filename,
                     file_type: t.proof.file_type,
                     file_size: t.proof.file_size,
                     url: t.proof.url
@@ -823,7 +825,7 @@ async function renderHomePage() {
                 <span class="card-title">📢 Pengumuman</span>
                 <button style="font-size:12px;color:var(--primary);" onclick="navigateTo('pengumuman')">Lihat Semua →</button>
             </div>
-            ${announcements.length===0?'<p style="font-size:13px;color:var(--text-muted);">Tidak ada pengumuman baru.</p>':announcements.map(a=>`
+        ${announcements.length===0?'<p style="font-size:13px;color:var(--text-muted);">Tidak ada pengumuman baru.</p>':announcements.map(a=>`
                 <div class="list-item" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:3px solid var(--danger);':''}">
                     <span>${a.isImportant?'🔴':'📄'}</span>
                     <div class="item-info"><div class="item-title">${escapeHtml(a.title)}</div><div class="item-subtitle">${formatShortDate(a.date)} • ${escapeHtml(a.category)}</div></div>
@@ -857,7 +859,7 @@ function renderKasSayaPage() {
             <div class="stat-card"><div class="stat-value">${getUnpaidPeriods(user.id).length}</div><div class="stat-label">Belum Bayar</div></div>
         </div>
         <div class="card">
-            <div class="card-header"><span class="card-title">Daftar Periode (${CLASS_FREQUENCY==='weekly'?'Mingguan':'Bulanan'})</span></div>
+            <div class="card-header"><span class="card-title">Daftar Periode (${state.cashSettings.frequency==='weekly'?'Mingguan':'Bulanan'})</span></div>
             <div class="filter-chips mb-8">
                 ${['semua','lunas','menunggu','ditolak','terlambat'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}
             </div>
@@ -874,7 +876,7 @@ function renderKasSayaPage() {
                     const st = getPeriodStatusForUser(p.id, user.id);
                     return `<div class="list-item" onclick="showPeriodDetail('${p.id}')" style="border-bottom:1px solid var(--border);border-radius:0;">
                         <span>${st==='lunas'?'✅':st==='menunggu'?'⏳':'⬜'}</span>
-                        <div class="item-info"><div class="item-title">${p.label}</div><div class="item-subtitle">${formatRupiah(p.amount)} • Deadline ${formatShortDate(p.dueDate)}</div></div>
+                        <div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div><div class="item-subtitle">${formatRupiah(p.amount)} • Deadline ${formatShortDate(p.dueDate)}</div></div>
                         <span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span>
                     </div>`;
                 }).join('')}
@@ -1165,7 +1167,7 @@ function renderRiwayatPage() {
             <button class="chip ${state.filterPeriod==='semua'?'active':''}" onclick="state.filterPeriod='semua';renderPage()">Semua Periode</button>
             ${state.periods.map(p=>`<button class="chip ${state.filterPeriod===p.id?'active':''}" onclick="state.filterPeriod='${p.id}';renderPage()">${p.label}</button>`).join('')}
         </div>
-        ${tx.length===0?'<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Belum ada transaksi</div></div>':tx.map(t=>`<div class="card mb-8" onclick="navigateTo('detail-transaksi',{id:'${t.id}'})"><div class="flex items-center gap-10"><span>💳</span><div class="flex-1"><p class="item-title">${t.periodLabel || t.period_label || 'Periode'}</p><p class="item-subtitle">${t.id} • ${formatShortDate(t.date)}</p></div><div class="text-right"><p style="font-weight:800;">${formatRupiah(t.amount)}</p><span class="badge ${getStatusBadgeClass(t.status)}">${getStatusLabel(t.status)}</span></div></div></div>`).join('')}
+        ${tx.length===0?'<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Belum ada transaksi</div></div>':tx.map(t=>`<div class="card mb-8" onclick="navigateTo('detail-transaksi',{id:'${t.id}'})"><div class="flex items-center gap-10"><span>💳</span><div class="flex-1"><p class="item-title">${escapeHtml(t.periodLabel || t.period_label || 'Periode')}</p><p class="item-subtitle">${escapeHtml(t.id)} • ${formatShortDate(t.date)}</p></div><div class="text-right"><p style="font-weight:800;">${formatRupiah(t.amount)}</p><span class="badge ${getStatusBadgeClass(t.status)}">${getStatusLabel(t.status)}</span></div></div></div>`).join('')}
     </div>`;
 }
 
@@ -1264,7 +1266,7 @@ function renderTunggakanPage() {
                 const dueDate = new Date(p.dueDate);
                 const now = new Date();
                 const diff = Math.ceil((now - dueDate) / (1000*60*60*24));
-                return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>⚠️</span><div class="item-info"><div class="item-title">${p.label}</div><div class="item-subtitle">Deadline: ${formatShortDate(p.dueDate)} • ${diff>0?`Terlambat ${diff} hari`:'Jatuh tempo'}</div></div><span style="font-weight:700;color:var(--danger);">${formatRupiah(p.amount)}</span></div>`;
+            return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>⚠️</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div><div class="item-subtitle">Deadline: ${formatShortDate(p.dueDate)} • ${diff>0?`Terlambat ${diff} hari`:'Jatuh tempo'}</div></div><span style="font-weight:700;color:var(--danger);">${formatRupiah(p.amount)}</span></div>`;
             }).join('')}
         </div>
         <div class="flex gap-8"><button class="btn btn-primary flex-1" onclick="navigateTo('pembayaran')">Bayar Sekarang</button></div>`}
@@ -1288,7 +1290,7 @@ function renderAnggotaPage() {
         <div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
         <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
-        ${members.map(m=>`<div class="card mb-8" onclick="navigateTo('detail-anggota',{id:${m.id}})"><div class="flex items-center gap-12">${getAvatarHtml(m,'avatar-sm')}<div class="flex-1"><p class="item-title">${m.name}</p><p class="item-subtitle">Absen ${String(m.absenNumber).padStart(2,'0')}</p></div><span class="badge ${badgeMap[m.status] || 'badge-neutral'}">${statusMap[m.status] || m.status}</span></div></div>`).join('')}
+        ${members.map(m=>`<div class="card mb-8" onclick="navigateTo('detail-anggota',{id:${m.id}})"><div class="flex items-center gap-12">${getAvatarHtml(m,'avatar-sm')}<div class="flex-1"><p class="item-title">${escapeHtml(m.name)}</p><p class="item-subtitle">Absen ${escapeHtml(String(m.absenNumber).padStart(2,'0'))}</p></div><span class="badge ${badgeMap[m.status] || 'badge-neutral'}">${statusMap[m.status] || escapeHtml(m.status)}</span></div></div>`).join('')}
     </div>`;
 }
 
@@ -1341,7 +1343,7 @@ function renderPengeluaranPage() {
     if (state.searchQuery) exps = exps.filter(e => e.name.toLowerCase().includes(state.searchQuery.toLowerCase()));
     const categories = [...new Set(state.expenses.map(e => e.category))];
     const catIcons = { kebersihan:'🧹', perlengkapan:'📦', kegiatan:'🎯', dekorasi:'🎨', sosial:'🤝', lainnya:'📋' };
-    return `${renderHeader('Pengeluaran Kelas', true)}<div class="container"><div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengeluaran" placeholder="Cari pengeluaran..." value="${state.searchQuery}" oninput="activeInputId='searchInputPengeluaran'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${catIcons[c]||'📋'} ${c}</button>`).join('')}</div>${exps.map(e=>`<div class="card mb-8" onclick="navigateTo('detail-pengeluaran',{id:${e.id}})"><div class="flex items-center gap-12"><span style="font-size:28px;">${catIcons[e.category]||'📋'}</span><div class="flex-1"><p class="item-title">${e.name}</p><p class="item-subtitle">${e.category} • ${formatShortDate(e.date)}</p></div><span style="font-weight:800;color:var(--danger);">${formatRupiah(e.amount)}</span></div></div>`).join('')}</div>`;
+    return `${renderHeader('Pengeluaran Kelas', true)}<div class="container"><div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengeluaran" placeholder="Cari pengeluaran..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengeluaran'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${catIcons[c]||'📋'} ${escapeHtml(c)}</button>`).join('')}</div>${exps.map(e=>`<div class="card mb-8" onclick="navigateTo('detail-pengeluaran',{id:${e.id}})"><div class="flex items-center gap-12"><span style="font-size:28px;">${catIcons[e.category]||'📋'}</span><div class="flex-1"><p class="item-title">${escapeHtml(e.name)}</p><p class="item-subtitle">${escapeHtml(e.category)} • ${formatShortDate(e.date)}</p></div><span style="font-weight:800;color:var(--danger);">${formatRupiah(e.amount)}</span></div></div>`).join('')}</div>`;
 }
 
 function renderDetailPengeluaranPage() {
@@ -1358,7 +1360,7 @@ function renderPengumumanPage() {
     if (state.filterStatus !== 'semua') anns = anns.filter(a => a.category === state.filterStatus);
     if (state.searchQuery) anns = anns.filter(a => a.title.toLowerCase().includes(state.searchQuery.toLowerCase()));
     const categories = [...new Set(state.announcements.map(a => a.category))];
-    return `${renderHeader('Pengumuman', true)}<div class="container"><div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengumuman" placeholder="Cari pengumuman..." value="${state.searchQuery}" oninput="activeInputId='searchInputPengumuman'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${c}</button>`).join('')}</div>${anns.map(a=>`<div class="card mb-8" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:4px solid var(--danger);':''}"><div class="flex items-start gap-10"><span>${a.isImportant?'🔴':'📄'}</span><div class="flex-1"><p class="item-title">${a.title}</p><p class="item-subtitle">${a.category} • ${formatShortDate(a.date)}</p></div>${!a.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
+    return `${renderHeader('Pengumuman', true)}<div class="container"><div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengumuman" placeholder="Cari pengumuman..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengumuman'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${escapeHtml(c)}</button>`).join('')}</div>${anns.map(a=>`<div class="card mb-8" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:4px solid var(--danger);':''}"><div class="flex items-start gap-10"><span>${a.isImportant?'🔴':'📄'}</span><div class="flex-1"><p class="item-title">${escapeHtml(a.title)}</p><p class="item-subtitle">${escapeHtml(a.category)} • ${formatShortDate(a.date)}</p></div>${!a.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
 }
 
 async function markAnnouncementRead(announcementId) {
@@ -1505,8 +1507,45 @@ function showCalendarEvent(day, month, year) {
 }
 
 // ==================== STATISTIK ====================
-function renderStatistikPage() {
+async function renderStatistikPage() {
     const user = getCurrentUser();
+
+    if (state.role === 'bendahara') {
+        let stats = null;
+        try {
+            const res = await apiFetch('bendahara_stats.php');
+            if (res && !res.error) stats = res;
+        } catch (e) {
+            console.warn('Gagal memuat statistik bendahara', e);
+        }
+
+        if (!stats) {
+            return `${renderHeader('Statistik Kelas (Bendahara)', true)}<div class="container"><div class="empty-state">Gagal memuat data statistik kelas.</div></div>`;
+        }
+
+        return `
+        ${renderHeader('Statistik Kelas (Bendahara)', true)}
+        <div class="container">
+            <div class="card text-center mb-16">
+                <p style="font-size:14px;color:var(--text-secondary);">Saldo Kas Kelas</p>
+                <p style="font-size:36px;font-weight:800;color:var(--primary);">${formatRupiah(stats.saldo)}</p>
+            </div>
+            <div class="stat-grid mb-16">
+                <div class="stat-card"><div class="stat-value" style="color:var(--success);">${formatRupiah(stats.total_income)}</div><div class="stat-label">Pemasukan Approved</div></div>
+                <div class="stat-card"><div class="stat-value" style="color:var(--danger);">${formatRupiah(stats.total_expense)}</div><div class="stat-label">Pengeluaran</div></div>
+                <div class="stat-card"><div class="stat-value" style="color:var(--warning);">${stats.pending_payments}</div><div class="stat-label">Pembayaran Menunggu</div></div>
+                <div class="stat-card"><div class="stat-value" style="color:var(--success);">${stats.approved_payments}</div><div class="stat-label">Pembayaran Berhasil</div></div>
+                <div class="stat-card"><div class="stat-value" style="color:var(--danger);">${stats.rejected_payments}</div><div class="stat-label">Pembayaran Ditolak</div></div>
+                <div class="stat-card"><div class="stat-value">${stats.member_count}</div><div class="stat-label">Anggota Kelas</div></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><span class="card-title">Tunggakan Kelas</span></div>
+                <p>Total Tunggakan: <strong style="color:var(--danger);">${formatRupiah(stats.total_arrears)}</strong></p>
+                <p>Siswa Menunggak: <strong>${stats.arrears_student_count} siswa</strong></p>
+            </div>
+        </div>`;
+    }
+
     const myTx = getUserTransactions(user.id);
     const totalPaid = myTx.filter(t => t.status === 'berhasil').reduce((sum, t) => sum + t.amount, 0);
     const onTime = myTx.filter(t => t.status === 'berhasil').length;
