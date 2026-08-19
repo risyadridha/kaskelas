@@ -73,6 +73,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([$classId, $userId, $name, $category, $amount, $description, $expenseDate]);
-    json_response(['success' => true, 'id' => $pdo->lastInsertId()]);
+    $expenseId = $pdo->lastInsertId();
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'create_expense', 'expenses', $expenseId, "Membuat pengeluaran $name sebesar $amount");
+    }
+
+    json_response(['success' => true, 'id' => $expenseId]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+    require_csrf();
+    if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $expenseId = $data['id'] ?? null;
+    $name = trim($data['name'] ?? '');
+    $category = $data['category'] ?? 'lainnya';
+    $amount = (float)($data['amount'] ?? 0);
+    $description = $data['description'] ?? '';
+    $expenseDate = $data['expense_date'] ?? date('Y-m-d');
+
+    if (!$expenseId || empty($name) || $amount <= 0) {
+        json_response(['error' => 'Data tidak valid'], 400);
+    }
+
+    // Check ownership
+    $stmt = $pdo->prepare("SELECT id FROM expenses WHERE id = ? AND class_id = ?");
+    $stmt->execute([$expenseId, $classId]);
+    if (!$stmt->fetch()) {
+        json_response(['error' => 'Pengeluaran tidak ditemukan'], 404);
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE expenses
+        SET name = ?, category = ?, amount = ?, description = ?, expense_date = ?
+        WHERE id = ? AND class_id = ?
+    ");
+    $stmt->execute([$name, $category, $amount, $description, $expenseDate, $expenseId, $classId]);
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'edit_expense', 'expenses', $expenseId, "Mengubah pengeluaran $name");
+    }
+
+    json_response(['success' => true]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    require_csrf();
+    if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $expenseId = $data['id'] ?? null;
+
+    if (!$expenseId) {
+        json_response(['error' => 'Expense ID required'], 400);
+    }
+
+    // Check ownership
+    $stmt = $pdo->prepare("SELECT id FROM expenses WHERE id = ? AND class_id = ?");
+    $stmt->execute([$expenseId, $classId]);
+    if (!$stmt->fetch()) {
+        json_response(['error' => 'Pengeluaran tidak ditemukan'], 404);
+    }
+
+    $stmt = $pdo->prepare("DELETE FROM expenses WHERE id = ? AND class_id = ?");
+    $stmt->execute([$expenseId, $classId]);
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'delete_expense', 'expenses', $expenseId, "Menghapus pengeluaran ID $expenseId");
+    }
+
+    json_response(['success' => true]);
 }
 ?>

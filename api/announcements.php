@@ -70,6 +70,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([$classId, $userId, $title, $content, $category, $priority, $publishedAt]);
-    json_response(['success' => true, 'id' => $pdo->lastInsertId()]);
+    $announcementId = $pdo->lastInsertId();
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'create_announcement', 'announcements', $announcementId, "Membuat pengumuman $title");
+    }
+
+    json_response(['success' => true, 'id' => $announcementId]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+    require_csrf();
+    if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $announcementId = $data['id'] ?? null;
+    $title = trim($data['title'] ?? '');
+    $content = trim($data['content'] ?? '');
+    $category = $data['category'] ?? 'informasi_kelas';
+    $priority = $data['priority'] ?? 'normal';
+
+    if (!$announcementId || empty($title) || empty($content)) {
+        json_response(['error' => 'Judul dan isi wajib diisi'], 400);
+    }
+
+    // Check ownership
+    $stmt = $pdo->prepare("SELECT id FROM announcements WHERE id = ? AND class_id = ?");
+    $stmt->execute([$announcementId, $classId]);
+    if (!$stmt->fetch()) {
+        json_response(['error' => 'Pengumuman tidak ditemukan'], 404);
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE announcements
+        SET title = ?, content = ?, category = ?, priority = ?
+        WHERE id = ? AND class_id = ?
+    ");
+    $stmt->execute([$title, $content, $category, $priority, $announcementId, $classId]);
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'edit_announcement', 'announcements', $announcementId, "Mengubah pengumuman $title");
+    }
+
+    json_response(['success' => true]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    require_csrf();
+    if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $announcementId = $data['id'] ?? null;
+
+    if (!$announcementId) {
+        json_response(['error' => 'Announcement ID required'], 400);
+    }
+
+    // Check ownership
+    $stmt = $pdo->prepare("SELECT id FROM announcements WHERE id = ? AND class_id = ?");
+    $stmt->execute([$announcementId, $classId]);
+    if (!$stmt->fetch()) {
+        json_response(['error' => 'Pengumuman tidak ditemukan'], 404);
+    }
+
+    $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = ? AND class_id = ?");
+    $stmt->execute([$announcementId, $classId]);
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'delete_announcement', 'announcements', $announcementId, "Menghapus pengumuman ID $announcementId");
+    }
+
+    json_response(['success' => true]);
 }
 ?>

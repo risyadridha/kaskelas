@@ -6,26 +6,59 @@ require 'helpers.php';
 require_login();
 $userId = $_SESSION['user_id'];
 
+$role = $_SESSION['role'] ?? 'siswa';
+
+// Fetch user's class_id
+$stmt = $pdo->prepare("SELECT class_id FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+$classId = $user['class_id'] ?? null;
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
     $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 20;
     $offset = ($page - 1) * $limit;
 
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM reports WHERE user_id = ?");
-    $stmt->execute([$userId]);
-    $total = (int)$stmt->fetchColumn();
+    if ($role === 'bendahara') {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) FROM reports r
+            JOIN users u ON u.id = r.user_id
+            WHERE u.class_id = ?
+        ");
+        $stmt->execute([$classId]);
+        $total = (int)$stmt->fetchColumn();
 
-    $stmt = $pdo->prepare("
-        SELECT id, user_id, category, title, description, attachment, transaction_id, status, response, created_at, updated_at
-        FROM reports
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-    ");
-    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
-    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
-    $stmt->bindValue(3, $offset, PDO::PARAM_INT);
-    $stmt->execute();
+        $stmt = $pdo->prepare("
+            SELECT r.id, r.user_id, r.category, r.title, r.description, r.attachment, r.transaction_id, r.status, r.response, r.created_at, r.updated_at,
+                   u.username, COALESCE(s.full_name, u.username) AS reporter_name
+            FROM reports r
+            JOIN users u ON u.id = r.user_id
+            LEFT JOIN students s ON s.user_id = u.id
+            WHERE u.class_id = ?
+            ORDER BY r.created_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->bindValue(1, $classId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $stmt->execute();
+    } else {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM reports WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $total = (int)$stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("
+            SELECT id, user_id, category, title, description, attachment, transaction_id, status, response, created_at, updated_at
+            FROM reports
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $stmt->execute();
+    }
     $reports = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     json_response([
@@ -37,6 +70,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'total_pages' => ceil($total / $limit)
         ]
     ]);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
+    require_csrf();
+    if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $reportId = $data['id'] ?? null;
+    $status = $data['status'] ?? 'diproses'; // dikirim, diproses, selesai
+    $response = $data['response'] ?? null;
+
+    if (!$reportId || !in_array($status, ['dikirim', 'diproses', 'selesai'])) {
+        json_response(['error' => 'Data status laporan tidak valid'], 400);
+    }
+
+    // Verify report ownership belongs to member of treasurer's class
+    $stmt = $pdo->prepare("
+        SELECT r.id FROM reports r
+        JOIN users u ON u.id = r.user_id
+        WHERE r.id = ? AND u.class_id = ?
+    ");
+    $stmt->execute([$reportId, $classId]);
+    if (!$stmt->fetch()) {
+        json_response(['error' => 'Laporan tidak ditemukan'], 404);
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE reports
+        SET status = ?, response = ?
+        WHERE id = ?
+    ");
+    $stmt->execute([$status, $response, $reportId]);
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'respond_report', 'reports', $reportId, "Merespons laporan ID $reportId status $status");
+    }
+
+    json_response(['success' => true]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
