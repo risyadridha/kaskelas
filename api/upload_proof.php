@@ -77,7 +77,8 @@ if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
 
 $pdo->beginTransaction();
 try {
-    if ($tx['status'] === 'ditolak') {
+    $isResubmit = ($tx['status'] === 'ditolak');
+    if ($isResubmit) {
         $submittedAt = date('Y-m-d H:i:s');
         $stmt = $pdo->prepare("
             UPDATE transactions
@@ -85,6 +86,14 @@ try {
             WHERE id = ?
         ");
         $stmt->execute([$submittedAt, $transactionId]);
+
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'resubmit_proof', 'transactions', $transactionId, "Resubmit bukti pembayaran untuk transaksi #{$transactionId}");
+        }
+    } else {
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'upload_proof', 'transactions', $transactionId, "Upload bukti pembayaran untuk transaksi #{$transactionId}");
+        }
     }
 
     // Ambil bukti lama untuk dihapus DARI DISK SETELAH COMMIT BERHASIL

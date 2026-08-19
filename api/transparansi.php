@@ -37,10 +37,10 @@ $balance = $openingBalance + $income - $expense;
 // Data grafik bulanan (opsional)
 $monthlyIncome = array_fill(0, 12, 0);
 $stmt = $pdo->prepare("
-    SELECT MONTH(created_at)-1 AS month, SUM(total_amount) AS total
+    SELECT MONTH(COALESCE(payment_date, created_at))-1 AS month, SUM(total_amount) AS total
     FROM transactions
     WHERE status='berhasil' AND user_id IN (SELECT id FROM users WHERE class_id = ?)
-    GROUP BY MONTH(created_at)
+    GROUP BY MONTH(COALESCE(payment_date, created_at))
 ");
 $stmt->execute([$classId]);
 while ($row = $stmt->fetch()) {

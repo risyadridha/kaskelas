@@ -38,6 +38,11 @@ try {
     $stmt->execute([$newStatus, $verifiedAt, $verifiedBy, $reason, $paymentDate, $transactionId]);
     if ($stmt->rowCount() !== 1) throw new RuntimeException('Transaksi sudah diverifikasi sebelumnya');
 
+    if (function_exists('log_audit')) {
+        $auditAction = $newStatus === 'berhasil' ? 'verify_payment' : 'reject_payment';
+        log_audit($pdo, $verifiedBy, $auditAction, 'transactions', $transactionId, "Verifikasi pembayaran transaksi #{$transactionId} status {$newStatus}" . ($reason ? " (alasan: {$reason})" : ""));
+    }
+
     // Tambah notifikasi ke siswa
     $type = $newStatus === 'berhasil' ? 'pembayaran_berhasil' : 'pembayaran_ditolak';
     $title = $newStatus === 'berhasil' ? 'Pembayaran Berhasil' : 'Pembayaran Ditolak';
