@@ -87,16 +87,18 @@ try {
         $stmt->execute([$submittedAt, $transactionId]);
     }
 
-    // Hapus bukti lama (file & DB record) jika transaksi sudah memiliki bukti sebelumnya
+    // Ambil bukti lama untuk dihapus DARI DISK SETELAH COMMIT BERHASIL
     $stmtOld = $pdo->prepare("SELECT file_name FROM payment_proofs WHERE transaction_id = ?");
     $stmtOld->execute([$transactionId]);
     $oldProofs = $stmtOld->fetchAll(PDO::FETCH_ASSOC);
+    $oldFilesToDelete = [];
     foreach ($oldProofs as $oldP) {
         $oldFilePath = $uploadDir . $oldP['file_name'];
         if (file_exists($oldFilePath)) {
-            @unlink($oldFilePath);
+            $oldFilesToDelete[] = $oldFilePath;
         }
     }
+
     $stmtDel = $pdo->prepare("DELETE FROM payment_proofs WHERE transaction_id = ?");
     $stmtDel->execute([$transactionId]);
 
@@ -129,6 +131,14 @@ try {
     $stmt->execute([$userId, "Bukti pembayaran untuk transaksi #{$transactionId} diupload"]);
 
     $pdo->commit();
+
+    // Hapus file fisik lama HANYA SETELAH COMMIT BERHASIL
+    foreach ($oldFilesToDelete as $oldPathToDelete) {
+        if (file_exists($oldPathToDelete)) {
+            @unlink($oldPathToDelete);
+        }
+    }
+
     json_response(['success' => true, 'file_name' => $fileName]);
 } catch (Exception $e) {
     if ($pdo->inTransaction()) {
