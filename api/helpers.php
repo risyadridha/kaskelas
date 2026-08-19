@@ -37,4 +37,17 @@ function require_csrf() {
 function generate_transaction_code() {
     return 'TRX-' . strtoupper(uniqid());
 }
+
+function log_audit($pdo, $userId, $action, $entityType = null, $entityId = null, $description = null) {
+    try {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $stmt = $pdo->prepare("
+            INSERT INTO audit_logs (user_id, action, entity_type, entity_id, description, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $action, $entityType, $entityId, $description, $ip]);
+    } catch (Exception $e) {
+        error_log("Audit log failed: " . $e->getMessage());
+    }
+}
 ?>
