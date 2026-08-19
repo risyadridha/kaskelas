@@ -87,8 +87,16 @@ function getPeriodStatusForUser(periodId, userId) {
     });
     if (!tx) {
         const now = new Date();
-        const dueDate = new Date(period.dueDate);
-        if (now > dueDate) return 'terlambat';
+        const todayStr = now.toISOString().split('T')[0];
+        const startDateStr = period.startDate;
+        const dueDateStr = period.dueDate;
+
+        if (startDateStr && todayStr < startDateStr) {
+            return 'upcoming';
+        }
+        if (dueDateStr && todayStr > dueDateStr) {
+            return 'terlambat';
+        }
         return 'belum';
     }
     if (tx.status === 'berhasil') return 'lunas';
@@ -113,9 +121,11 @@ function getUnpaidPeriods(userId) {
 }
 
 function calculateProgress(userId) {
-    const totalPeriods = state.periods.length;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const eligiblePeriods = state.periods.filter(p => !p.startDate || p.startDate <= todayStr);
+    const totalPeriods = eligiblePeriods.length;
     let lunasCount = 0;
-    state.periods.forEach(p => {
+    eligiblePeriods.forEach(p => {
         if (getPeriodStatusForUser(p.id, userId) === 'lunas') lunasCount++;
     });
     const rate = totalPeriods > 0 ? Math.round((lunasCount / totalPeriods) * 100) : 0;
