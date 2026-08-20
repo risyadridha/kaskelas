@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmt->execute([$classId]);
     $total = (int)$stmt->fetchColumn();
 
-    // List pengeluaran untuk kelas user dengan kolom spesifik (ganti SELECT *)
+    // List pengeluaran untuk kelas user
     $stmt = $pdo->prepare("
         SELECT e.id, e.class_id, e.created_by, e.name, e.category, e.amount,
                e.description, e.expense_date, e.receipt_file, e.created_at,
@@ -54,32 +54,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
-    // Tambah pengeluaran (khusus bendahara)
     if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
 
-    $data = json_decode(file_get_contents('php://input'), true);
-    $name = $data['name'] ?? '';
-    $category = $data['category'] ?? 'lainnya';
-    $amount = $data['amount'] ?? 0;
-    $description = $data['description'] ?? '';
-    $expenseDate = $data['expense_date'] ?? date('Y-m-d');
+    $name = $_POST['name'] ?? $_JSON['name'] ?? '';
+    if (empty($name)) {
+        $jsonInput = json_decode(file_get_contents('php://input'), true);
+        if ($jsonInput) {
+            $name = $jsonInput['name'] ?? '';
+            $category = $jsonInput['category'] ?? 'lainnya';
+            $amount = (float)($jsonInput['amount'] ?? 0);
+            $description = $jsonInput['description'] ?? '';
+            $expenseDate = $jsonInput['expense_date'] ?? date('Y-m-d');
+        }
+    } else {
+        $category = $_POST['category'] ?? 'lainnya';
+        $amount = (float)($_POST['amount'] ?? 0);
+        $description = $_POST['description'] ?? '';
+        $expenseDate = $_POST['expense_date'] ?? date('Y-m-d');
+    }
 
     if (empty($name) || $amount <= 0) {
         json_response(['error' => 'Nama dan nominal wajib diisi'], 400);
     }
 
+    $receiptFile = null;
+    if (isset($_FILES['receipt']) && $_FILES['receipt']['error'] === UPLOAD_ERR_OK) {
+        $file = $_FILES['receipt'];
+        if ($file['size'] > 5 * 1024 * 1024) {
+            json_response(['error' => 'Ukuran nota maksimal 5MB'], 400);
+        }
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file['tmp_name']);
+        $allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!in_array($mime, $allowedMime)) {
+            json_response(['error' => 'Tipe file nota tidak diizinkan'], 400);
+        }
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($extension, $allowedExt)) {
+            json_response(['error' => 'Ekstensi file nota tidak diizinkan'], 400);
+        }
+        $uploadDir = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . 'receipts' . DIRECTORY_SEPARATOR;
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        $fileName = 'receipt_' . bin2hex(random_bytes(12)) . '.' . $extension;
+        $uploadPath = $uploadDir . $fileName;
+        if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+            json_response(['error' => 'Gagal menyimpan file nota'], 500);
+        }
+        $receiptFile = 'receipts/' . $fileName;
+    }
+
     $stmt = $pdo->prepare("
-        INSERT INTO expenses (class_id, created_by, name, category, amount, description, expense_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO expenses (class_id, created_by, name, category, amount, description, expense_date, receipt_file)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$classId, $userId, $name, $category, $amount, $description, $expenseDate]);
+    $stmt->execute([$classId, $userId, $name, $category, $amount, $description, $expenseDate, $receiptFile]);
     $expenseId = $pdo->lastInsertId();
 
     if (function_exists('log_audit')) {
         log_audit($pdo, $userId, 'create_expense', 'expenses', $expenseId, "Membuat pengeluaran $name sebesar $amount");
     }
 
-    json_response(['success' => true, 'id' => $expenseId]);
+    json_response(['success' => true, 'id' => $expenseId, 'receipt_file' => $receiptFile]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
@@ -131,14 +169,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
     }
 
     // Check ownership
-    $stmt = $pdo->prepare("SELECT id FROM expenses WHERE id = ? AND class_id = ?");
+    $stmt = $pdo->prepare("SELECT id, receipt_file FROM expenses WHERE id = ? AND class_id = ?");
     $stmt->execute([$expenseId, $classId]);
-    if (!$stmt->fetch()) {
+    $exp = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$exp) {
         json_response(['error' => 'Pengeluaran tidak ditemukan'], 404);
     }
 
     $stmt = $pdo->prepare("DELETE FROM expenses WHERE id = ? AND class_id = ?");
     $stmt->execute([$expenseId, $classId]);
+
+    if (!empty($exp['receipt_file'])) {
+        $receiptPath = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $exp['receipt_file']);
+        if (file_exists($receiptPath)) {
+            @unlink($receiptPath);
+        }
+    }
 
     if (function_exists('log_audit')) {
         log_audit($pdo, $userId, 'delete_expense', 'expenses', $expenseId, "Menghapus pengeluaran ID $expenseId");

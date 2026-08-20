@@ -112,11 +112,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
-    $data = json_decode(file_get_contents('php://input'), true);
-    $category = $data['category'] ?? 'lainnya';
-    $title = $data['title'] ?? '';
-    $description = $data['description'] ?? '';
-    $transactionId = $data['transaction_id'] ?? null;
+
+    $category = $_POST['category'] ?? 'lainnya';
+    $title = trim($_POST['title'] ?? '');
+    $description = trim($_POST['description'] ?? '');
+    $transactionId = $_POST['transaction_id'] ?? null;
+
+    if (empty($title) || empty($description)) {
+        $jsonInput = json_decode(file_get_contents('php://input'), true);
+        if ($jsonInput) {
+            $category = $jsonInput['category'] ?? 'lainnya';
+            $title = trim($jsonInput['title'] ?? '');
+            $description = trim($jsonInput['description'] ?? '');
+            $transactionId = $jsonInput['transaction_id'] ?? null;
+        }
+    }
 
     if (empty($title) || empty($description)) {
         json_response(['error' => 'Judul dan deskripsi wajib diisi'], 400);
@@ -132,11 +142,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $transactionId = null;
     }
 
+    $attachmentPath = null;
+    if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+        $file = $_FILES['attachment'];
+        if ($file['size'] > 5 * 1024 * 1024) {
+            json_response(['error' => 'Ukuran lampiran maksimal 5MB'], 400);
+        }
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file['tmp_name']);
+        $allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!in_array($mime, $allowedMime)) {
+            json_response(['error' => 'Tipe file lampiran tidak diizinkan'], 400);
+        }
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($extension, $allowedExt)) {
+            json_response(['error' => 'Ekstensi file lampiran tidak diizinkan'], 400);
+        }
+        $uploadDir = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . 'reports' . DIRECTORY_SEPARATOR;
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        $fileName = 'report_' . bin2hex(random_bytes(12)) . '.' . $extension;
+        $uploadPath = $uploadDir . $fileName;
+        if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+            json_response(['error' => 'Gagal menyimpan lampiran'], 500);
+        }
+        $attachmentPath = 'reports/' . $fileName;
+    }
+
     $stmt = $pdo->prepare("
-        INSERT INTO reports (user_id, category, title, description, transaction_id)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO reports (user_id, category, title, description, attachment, transaction_id)
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$userId, $category, $title, $description, $transactionId]);
-    json_response(['success' => true, 'id' => $pdo->lastInsertId()]);
+    $stmt->execute([$userId, $category, $title, $description, $attachmentPath, $transactionId]);
+    $newReportId = $pdo->lastInsertId();
+
+    if (function_exists('log_audit')) {
+        log_audit($pdo, $userId, 'create_report', 'reports', $newReportId, "Membuat laporan '{$title}'");
+    }
+
+    json_response(['success' => true, 'id' => $newReportId, 'attachment' => $attachmentPath]);
 }
 ?>
