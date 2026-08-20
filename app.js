@@ -336,6 +336,7 @@ async function loadDataFromServer() {
                 amount: parseFloat(e.amount),
                 desc: e.description,
                 date: e.expense_date,
+                receiptFile: e.receipt_file,
                 balanceBefore: e.balance_before,
                 balanceAfter: e.balance_after
             }));
@@ -869,7 +870,7 @@ function renderKasSayaPage() {
             <div class="stat-card"><div class="stat-value">${getUnpaidPeriods(user.id).length}</div><div class="stat-label">Belum Bayar</div></div>
         </div>
         <div class="card">
-            <div class="card-header"><span class="card-title">Daftar Periode (${state.cashSettings.frequency==='weekly'?'Mingguan':'Bulanan'})</span></div>
+            <div class="card-header"><span class="card-title">Daftar Periode (${state.cashSettings.frequency==='weekly'?'Mingguan':'Bulanan'})</span>${state.role==='bendahara'?`<button class="btn btn-primary btn-sm" onclick="showAddPeriodModal()">+ Tambah Periode</button>`:''}</div>
             <div class="filter-chips mb-8">
                 ${['semua','lunas','menunggu','ditolak','terlambat'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}
             </div>
@@ -1360,7 +1361,7 @@ function renderDetailPengeluaranPage() {
     const expId = state.pageParams.id;
     const exp = state.expenses.find(e => e.id == expId);
     if (!exp) return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Pengeluaran tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="card text-center mb-16"><span style="font-size:48px;">📋</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div></div>`;
+    return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="card text-center mb-16"><span style="font-size:48px;">📋</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p>📄 ${escapeHtml(exp.receiptFile)}</p></div>` : ''}</div>`;
 }
 
 // ==================== PENGUMUMAN ====================
@@ -1516,6 +1517,66 @@ function showCalendarEvent(day, month, year) {
     }
 }
 
+function showAddPeriodModal() {
+    const defaultAmt = state.cashSettings.defaultAmount || 3000;
+    const freq = state.cashSettings.frequency || 'weekly';
+    showModal(`
+        <h3>Tambah Periode Kas Baru</h3>
+        <div class="form-group"><label class="form-label">Nama Periode</label><input type="text" id="pName" class="form-input" placeholder="e.g. Minggu 1 Sep 2026"></div>
+        <div class="form-group"><label class="form-label">Tanggal Mulai</label><input type="date" id="pStart" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Tanggal Selesai</label><input type="date" id="pEnd" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Jatuh Tempo</label><input type="date" id="pDue" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Nominal (Rp)</label><input type="number" id="pAmount" class="form-input" value="${defaultAmt}"></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" onclick="submitNewPeriod('${freq}')">Simpan</button></div>
+    `);
+}
+
+async function submitNewPeriod(frequency) {
+    const name = document.getElementById('pName').value.trim();
+    const startDate = document.getElementById('pStart').value;
+    const endDate = document.getElementById('pEnd').value;
+    const dueDate = document.getElementById('pDue').value;
+    const amount = parseFloat(document.getElementById('pAmount').value) || 0;
+
+    if (!name || !startDate || !endDate || !dueDate || amount <= 0) {
+        showToast('Semua field wajib diisi dengan benar', 'warning');
+        return;
+    }
+
+    try {
+        const data = await apiFetch('periods.php', 'POST', {
+            name, frequency, start_date: startDate, end_date: endDate, due_date: dueDate, amount, status: 'upcoming'
+        });
+        if (data.success) {
+            showToast('Periode berhasil ditambahkan', 'success');
+            closeModal();
+            await loadDataFromServer();
+            renderPage();
+        } else {
+            showToast(data.error || 'Gagal menambah periode', 'error');
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+    }
+}
+
+async function deletePeriod(periodId) {
+    if (!confirm('Yakin ingin menghapus periode ini?')) return;
+    try {
+        const data = await apiFetch('periods.php', 'DELETE', { id: periodId });
+        if (data.success) {
+            showToast('Periode berhasil dihapus', 'success');
+            closeBottomSheet();
+            await loadDataFromServer();
+            renderPage();
+        } else {
+            showToast(data.error || 'Gagal menghapus periode', 'error');
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+    }
+}
+
 // ==================== STATISTIK ====================
 async function renderStatistikPage() {
     const user = getCurrentUser();
@@ -1667,35 +1728,87 @@ async function confirmLogout() {
 
 function renderEditProfilPage() {
     const user = getCurrentUser();
-    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="showToast('Upload foto','info')">📸 Ganti Foto</button></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${user.nis || ''}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${user.kelas || ''}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${user.email || ''}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${user.phone || ''}"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" placeholder="Kosongkan jika tidak diubah"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
+    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">📸 Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${user.nis || ''}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${user.kelas || ''}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${user.email || ''}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${user.phone || ''}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
+}
+
+async function handleProfilePhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+        showToast('Ukuran foto maksimal 2MB', 'error');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('photo', file);
+    try {
+        const data = await apiFetch('upload_profile_photo.php', 'POST', formData, true);
+        if (data.success) {
+            showToast('Foto profil berhasil diperbarui', 'success');
+            if (state.currentUserData) state.currentUserData.profile_photo = data.profile_photo;
+            renderPage();
+        } else {
+            showToast(data.error || 'Gagal mengupload foto profil', 'error');
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+    }
 }
 
 async function saveEditProfile() {
     const email = document.getElementById('editEmail').value.trim();
     const phone = document.getElementById('editPhone').value.trim();
+    const currentPass = document.getElementById('editCurrentPass')?.value || '';
+    const newPass = document.getElementById('editNewPass')?.value || '';
+    const confirmPass = document.getElementById('editConfirmPass')?.value || '';
 
     // Validasi dasar frontend
-    if (!email.includes('@')) {
+    if (email && !email.includes('@')) {
         showToast('Email tidak valid', 'error');
         return;
     }
-    if (phone.length < 10 || !/^[0-9]+$/.test(phone)) {
+    if (phone && (phone.length < 10 || !/^[0-9]+$/.test(phone))) {
         showToast('Nomor HP minimal 10 digit angka', 'error');
         return;
     }
 
-    try {
-        const data = await apiFetch('update_profile.php', 'POST', { email, phone });
-        if (data.success) {
-            // Perbarui state lokal hanya jika server berhasil
-            const user = getCurrentUser();
-            user.email = email;
-            user.phone = phone;
-            showToast('Profil diperbarui', 'success');
-            navigateTo('profil');
-        } else {
-            showToast(data.error || 'Gagal memperbarui profil', 'error');
+    if (newPass || confirmPass) {
+        if (!currentPass) {
+            showToast('Masukkan password saat ini untuk mengubah password', 'warning');
+            return;
         }
+        if (newPass !== confirmPass) {
+            showToast('Konfirmasi password tidak cocok', 'error');
+            return;
+        }
+        if (newPass.length < 6) {
+            showToast('Password baru minimal 6 karakter', 'error');
+            return;
+        }
+    }
+
+    try {
+        const profileData = await apiFetch('update_profile.php', 'POST', { email, phone });
+        if (!profileData.success) {
+            showToast(profileData.error || 'Gagal memperbarui profil', 'error');
+            return;
+        }
+
+        if (newPass) {
+            const passData = await apiFetch('change_password.php', 'POST', {
+                current_password: currentPass,
+                new_password: newPass
+            });
+            if (!passData.success) {
+                showToast(passData.error || 'Gagal mengubah password', 'error');
+                return;
+            }
+        }
+
+        const user = getCurrentUser();
+        user.email = email;
+        user.phone = phone;
+        showToast('Profil dan password berhasil diperbarui', 'success');
+        navigateTo('profil');
     } catch (err) {
         showToast('Gagal terhubung ke server. Perubahan tidak disimpan.', 'error');
     }
@@ -1751,22 +1864,31 @@ function renderBantuanPage() {
 }
 
 function renderReportProblemPage() {
-    return `${renderHeader('Laporkan Masalah', true)}<div class="container"><div class="card"><div class="form-group"><label class="form-label">Kategori</label><select class="form-input" id="reportCategory"><option>Pembayaran</option><option>Akun</option><option>Data kas</option><option>Bukti</option><option>Bug</option><option>Lainnya</option></select></div><div class="form-group"><label class="form-label">Judul</label><input class="form-input" id="reportTitle"></div><div class="form-group"><label class="form-label">Deskripsi</label><textarea class="form-input" id="reportDesc"></textarea></div><div class="form-group"><label class="form-label">ID Transaksi (opsional)</label><input class="form-input" id="reportTxId" placeholder="TRX-..."></div><button class="btn btn-primary btn-block" onclick="submitReport()">Kirim</button></div></div>`;
+    return `${renderHeader('Laporkan Masalah', true)}<div class="container"><div class="card"><div class="form-group"><label class="form-label">Kategori</label><select class="form-input" id="reportCategory"><option>pembayaran</option><option>akun</option><option>bukti_pembayaran</option><option>data_kas</option><option>aplikasi</option><option>lainnya</option></select></div><div class="form-group"><label class="form-label">Judul</label><input class="form-input" id="reportTitle"></div><div class="form-group"><label class="form-label">Deskripsi</label><textarea class="form-input" id="reportDesc"></textarea></div><div class="form-group"><label class="form-label">ID Transaksi (opsional)</label><input class="form-input" id="reportTxId" placeholder="TRX-..."></div><div class="form-group"><label class="form-label">Lampiran Bukti (opsional, Maks 5MB)</label><input type="file" id="reportAttachment" class="form-input" accept=".jpg,.jpeg,.png,.pdf"></div><button class="btn btn-primary btn-block" onclick="submitReport()">Kirim</button></div></div>`;
 }
 
 async function submitReport() {
-    const title = document.getElementById('reportTitle').value;
-    const desc = document.getElementById('reportDesc').value;
+    const title = document.getElementById('reportTitle').value.trim();
+    const desc = document.getElementById('reportDesc').value.trim();
+    const category = document.getElementById('reportCategory').value;
+    const txId = document.getElementById('reportTxId')?.value.trim() || '';
+    const fileInput = document.getElementById('reportAttachment');
+    const attachment = fileInput?.files[0] || null;
+
     if (!title || !desc) { showToast('Isi judul dan deskripsi', 'warning'); return; }
+
+    const formData = new FormData();
+    formData.append('category', category);
+    formData.append('title', title);
+    formData.append('description', desc);
+    if (txId) formData.append('transaction_id', txId);
+    if (attachment) formData.append('attachment', attachment);
+
     try {
-        const data = await apiFetch('reports.php', 'POST', {
-            category: document.getElementById('reportCategory').value,
-            title: title,
-            description: desc,
-            transaction_id: document.getElementById('reportTxId')?.value || null
-        });
+        const data = await apiFetch('reports.php', 'POST', formData, true);
         if (data.success) {
             showToast('Laporan berhasil dikirim', 'success');
+            await loadDataFromServer();
             navigateTo('my-reports');
         } else {
             showToast(data.error || 'Gagal mengirim laporan', 'error');
