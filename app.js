@@ -1,8 +1,5 @@
 // ==================== KONFIGURASI & DATA ====================
 const API_BASE_URL = window.KASKELAS_API_BASE_URL || 'api/';
-const CLASS_FREQUENCY = 'weekly';
-const WEEKLY_AMOUNT = 3000;
-const MONTHLY_AMOUNT = 10000;
 let csrfToken = null;
 
 const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -441,9 +438,12 @@ async function loadDashboardData() {
         if (settingsRes.cash_settings) {
             const cs = settingsRes.cash_settings;
             state.cashSettings = {
-                frequency: cs.frequency,
-                defaultAmount: parseFloat(cs.default_amount),
-                paymentDeadlineDays: parseInt(cs.payment_deadline_days)
+                frequency: cs.frequency || 'monthly',
+                defaultAmount: parseFloat(cs.default_amount || 0),
+                paymentDeadlineDays: parseInt(cs.payment_deadline_days || 0),
+                bankName: cs.bank_name || null,
+                accountNumber: cs.account_number || null,
+                accountHolder: cs.account_holder || null
             };
         }
 
@@ -945,7 +945,7 @@ async function renderPembayaranPage() {
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
                 ${['cash','transfer','qris'].map(m=>`<button class="chip ${state.selectedMethod===m?'active':''}" onclick="state.selectedMethod='${m}';renderPage()" style="padding:12px;text-align:center;"><span style="font-size:20px;display:block;">${m==='cash'?'💵':m==='transfer'?'🏦':'📱'}</span>${m.toUpperCase()}</button>`).join('')}
             </div>
-            ${state.selectedMethod==='qris'?`<div class="text-center mt-8"><div style="width:120px;height:120px;background:var(--input-bg);border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:48px;">📱</div><p style="font-size:12px;color:var(--text-muted);">Scan untuk bayar ${formatRupiah(totalAmount)}</p></div>`:state.selectedMethod==='transfer'?`<p style="font-size:13px;margin-top:8px;">Transfer ke rekening: <strong>BNI 1234-5678-9012 a.n. Bendahara</strong></p>`:`<p style="font-size:13px;margin-top:8px;">Serahkan uang kepada bendahara.</p>`}
+            ${state.selectedMethod==='qris'?`<div class="text-center mt-8"><div style="width:120px;height:120px;background:var(--input-bg);border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:48px;">📱</div><p style="font-size:12px;color:var(--text-muted);">Scan untuk bayar ${formatRupiah(totalAmount)}</p></div>`:state.selectedMethod==='transfer'?`<p style="font-size:13px;margin-top:8px;">Transfer ke rekening: <strong>${state.cashSettings.bankName && state.cashSettings.accountNumber ? `${escapeHtml(state.cashSettings.bankName)} ${escapeHtml(state.cashSettings.accountNumber)} ${state.cashSettings.accountHolder ? 'a.n. ' + escapeHtml(state.cashSettings.accountHolder) : ''}` : 'rekening belum dikonfigurasi'}</strong></p>`:`<p style="font-size:13px;margin-top:8px;">Serahkan uang kepada bendahara.</p>`}
         </div>
         <div class="card mb-16">
             <p>Total yang harus dibayar:</p>
@@ -1338,7 +1338,7 @@ function renderTransparansiPage() {
         <div class="card">
             <div class="card-header"><span class="card-title">Ringkasan Bulanan</span></div>
             <select class="form-input mb-8" onchange="state.transparansiMonth=parseInt(this.value);renderPage()">
-                ${months.map((m,i)=>`<option value="${i}" ${state.transparansiMonth===i?'selected':''}>${m} 2026</option>`).join('')}
+                ${months.map((m,i)=>`<option value="${i}" ${state.transparansiMonth===i?'selected':''}>${m} ${new Date().getFullYear()}</option>`).join('')}
             </select>
             <p>Pemasukan: <strong>${formatRupiah(monthIncome)}</strong></p>
             <p>Pengeluaran: <strong>${formatRupiah(monthExpense)}</strong></p>
@@ -1733,11 +1733,13 @@ function setTheme(theme) {
 }
 
 function renderFaqPage() {
+    const freqLabel = state.cashSettings.frequency === 'weekly' ? 'minggu' : 'bulan';
+    const amountLabel = formatRupiah(state.cashSettings.defaultAmount || 0);
     const faqs = [
         { q: 'Bagaimana cara membayar kas?', a: 'Buka menu Pembayaran, pilih periode, pilih metode, lalu konfirmasi.' },
         { q: 'Bagaimana cara upload bukti?', a: 'Setelah pembayaran, Anda akan diarahkan ke halaman upload bukti.' },
-        { q: 'Berapa nominal kas?', a: CLASS_FREQUENCY === 'weekly' ? 'Rp3.000 per minggu' : 'Rp10.000 per bulan' },
-        { q: 'Kapan deadline?', a: CLASS_FREQUENCY === 'weekly' ? 'Setiap akhir minggu (Minggu).' : 'Tanggal 20 setiap bulan.' },
+        { q: 'Berapa nominal kas?', a: `${amountLabel} per ${freqLabel}` },
+        { q: 'Kapan deadline?', a: state.cashSettings.paymentDeadlineDays > 0 ? `${state.cashSettings.paymentDeadlineDays} hari setelah periode dimulai.` : (state.cashSettings.frequency === 'weekly' ? 'Setiap akhir minggu (Minggu).' : 'Tanggal 20 setiap bulan.') },
         { q: 'Kenapa belum diverifikasi?', a: 'Verifikasi membutuhkan 1-3 hari kerja.' },
         { q: 'Jika ditolak?', a: 'Upload ulang bukti yang jelas.' },
     ];
