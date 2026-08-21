@@ -33,6 +33,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: strict-origin-when-cross-origin');
 
 $localConfig = __DIR__ . '/config.local.php';
 $settings = is_file($localConfig) ? require $localConfig : [];
