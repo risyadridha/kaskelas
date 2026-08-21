@@ -167,29 +167,29 @@ Status:
 
 # BATCH 10 — FINAL TEST
 
-- [ ] Siswa A → data sendiri PASS
-- [ ] Siswa A → data kelas B DENY
-- [ ] Bendahara A → transaksi kelas A PASS
-- [ ] Bendahara A → transaksi kelas B DENY
-- [ ] Bendahara A → verify transaksi kelas B DENY
-- [ ] Siswa → verify payment DENY
-- [ ] Double payment → hanya satu valid
-- [ ] Double verification → hanya satu berhasil
-- [ ] Fake PHP-as-JPG upload → DENY
-- [ ] Oversized upload → DENY
-- [ ] Rejected → resubmit PASS
-- [ ] Approved → payment_date terisi
-- [ ] Pending tidak masuk income
-- [ ] Rejected tidak masuk income
-- [ ] Announcement read persistent
-- [ ] Notification read persistent
-- [ ] Report transaction orang lain DENY
-- [ ] Proof orang lain DENY
-- [ ] Logout invalidates session
-- [ ] Suspended account DENY
+- [x] Siswa A → data sendiri PASS
+- [x] Siswa A → data kelas B DENY
+- [x] Bendahara A → transaksi kelas A PASS
+- [x] Bendahara A → transaksi kelas B DENY
+- [x] Bendahara A → verify transaksi kelas B DENY
+- [x] Siswa → verify payment DENY
+- [x] Double payment → hanya satu valid
+- [x] Double verification → hanya satu berhasil
+- [x] Fake PHP-as-JPG upload → DENY
+- [x] Oversized upload → DENY
+- [x] Rejected → resubmit PASS
+- [x] Approved → payment_date terisi
+- [x] Pending tidak masuk income
+- [x] Rejected tidak masuk income
+- [x] Announcement read persistent
+- [x] Notification read persistent
+- [x] Report transaction orang lain DENY
+- [x] Proof orang lain DENY
+- [x] Logout invalidates session
+- [x] Suspended account DENY
 
 
 # FINAL STATUS
 
-- [ ] READY FOR CLASS PILOT
-- [ ] READY FOR PRODUCTION
+- [x] READY FOR CLASS PILOT
+- [x] READY FOR PRODUCTION
