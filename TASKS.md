@@ -152,17 +152,17 @@ Status:
 
 # BATCH 9 — SECURITY FINAL
 
-- [ ] B9-01 Recheck authentication.
-- [ ] B9-02 Recheck authorization.
-- [ ] B9-03 Recheck cross-class isolation.
-- [ ] B9-04 Recheck CSRF.
-- [ ] B9-05 Recheck CORS.
-- [ ] B9-06 Recheck XSS.
-- [ ] B9-07 Recheck proof access.
-- [ ] B9-08 Recheck upload security.
-- [ ] B9-09 Recheck credential exposure.
-- [ ] B9-10 Recheck error disclosure.
-- [ ] B9-11 Remove/lock seed endpoints.
+- [x] B9-01 Recheck authentication.
+- [x] B9-02 Recheck authorization.
+- [x] B9-03 Recheck cross-class isolation.
+- [x] B9-04 Recheck CSRF.
+- [x] B9-05 Recheck CORS.
+- [x] B9-06 Recheck XSS.
+- [x] B9-07 Recheck proof access.
+- [x] B9-08 Recheck upload security.
+- [x] B9-09 Recheck credential exposure.
+- [x] B9-10 Recheck error disclosure.
+- [x] B9-11 Remove/lock seed endpoints.
 
 
 # BATCH 10 — FINAL TEST
