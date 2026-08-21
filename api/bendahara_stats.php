@@ -85,25 +85,32 @@ $totalArrearsAmount = 0.00;
 $arrearsStudentCount = 0;
 
 if (!empty($studentIds) && !empty($periods)) {
-    foreach ($studentIds as $sId) {
-        // Ambil period_ids yang sudah 'berhasil' atau 'menunggu'
-        $stmtPaid = $pdo->prepare("
-            SELECT DISTINCT ti.period_id, t.status
-            FROM transactions t
-            JOIN transaction_items ti ON ti.transaction_id = t.id
-            WHERE t.user_id = ? AND t.status IN ('berhasil', 'menunggu')
-        ");
-        $stmtPaid->execute([$sId]);
-        $paidRows = $stmtPaid->fetchAll(PDO::FETCH_ASSOC);
+    // Single query to get all (user_id, period_id) pairs with status = 'berhasil' in this class
+    $stmtPaid = $pdo->prepare("
+        SELECT DISTINCT t.user_id, ti.period_id
+        FROM transactions t
+        JOIN transaction_items ti ON ti.transaction_id = t.id
+        WHERE t.status = 'berhasil' AND t.user_id IN (SELECT id FROM users WHERE class_id = ?)
+    ");
+    $stmtPaid->execute([$classId]);
+    $paidRows = $stmtPaid->fetchAll(PDO::FETCH_ASSOC);
 
-        $paidPeriodIds = [];
-        foreach ($paidRows as $pr) {
-            $paidPeriodIds[] = (int)$pr['period_id'];
+    $paidMap = [];
+    foreach ($paidRows as $pr) {
+        $uId = (int)$pr['user_id'];
+        $pId = (int)$pr['period_id'];
+        if (!isset($paidMap[$uId])) {
+            $paidMap[$uId] = [];
         }
+        $paidMap[$uId][$pId] = true;
+    }
 
+    foreach ($studentIds as $sId) {
+        $sIdInt = (int)$sId;
         $studentHasArrears = false;
         foreach ($periods as $p) {
-            if (!in_array((int)$p['id'], $paidPeriodIds, true)) {
+            $pIdInt = (int)$p['id'];
+            if (!isset($paidMap[$sIdInt][$pIdInt])) {
                 $totalArrearsAmount += (float)$p['amount'];
                 $studentHasArrears = true;
             }
