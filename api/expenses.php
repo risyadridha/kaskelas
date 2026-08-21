@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
     if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
 
-    $name = $_POST['name'] ?? $_JSON['name'] ?? '';
+    $name = $_POST['name'] ?? '';
     if (empty($name)) {
         $jsonInput = json_decode(file_get_contents('php://input'), true);
         if ($jsonInput) {

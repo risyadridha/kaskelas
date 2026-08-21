@@ -68,6 +68,55 @@ function showModal(html){ document.getElementById('modalOverlay').classList.add(
 function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
 function toggleTheme(theme){ state.theme=theme; document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('kaskelas-theme', theme); }
 function getCurrentUser(){ return state.currentUserData || state.students.find(s=>s.id===state.currentUser) || {id:state.currentUser, name:'User', username:'user'}; }
+function normalizeTransaction(t) {
+    if (!t) return null;
+    const amountVal = parseFloat(t.total_amount !== undefined ? t.total_amount : (t.amount !== undefined ? t.amount : 0));
+    const periodIdsArr = t.period_ids
+        ? (Array.isArray(t.period_ids) ? t.period_ids : String(t.period_ids).split(',').map(Number))
+        : (t.periodIds ? t.periodIds : (t.period_id ? [t.period_id] : []));
+
+    let proofObj = null;
+    if (t.proof) {
+        if (typeof t.proof === 'object') {
+            proofObj = {
+                id: t.proof.id,
+                file_name: t.proof.file_name || t.proof.filename || t.proof.name,
+                file_type: t.proof.file_type || t.proof.filetype,
+                file_size: t.proof.file_size || t.proof.filesize,
+                url: t.proof.url
+            };
+        } else if (typeof t.proof === 'string') {
+            proofObj = { id: null, file_name: t.proof, file_type: null, file_size: null, url: t.proof };
+        }
+    }
+
+    const createdStr = t.created_at || t.createdAt || new Date().toISOString();
+    const dateOnly = createdStr ? createdStr.split('T')[0] : new Date().toISOString().split('T')[0];
+
+    return {
+        id: t.id,
+        user_id: t.user_id ?? t.studentId,
+        studentId: t.user_id ?? t.studentId,
+        studentName: t.student_name || t.studentName || 'Siswa',
+        periodId: t.period_id || t.periodId || (periodIdsArr[0] || null),
+        periodIds: periodIdsArr,
+        periodLabel: t.period_label || t.periodLabel || '',
+        frequency: t.frequency || state.cashSettings.frequency,
+        amount: amountVal,
+        total_amount: amountVal,
+        method: t.method || 'cash',
+        date: dateOnly,
+        dateObj: new Date(createdStr),
+        status: t.status || 'menunggu',
+        proof: proofObj,
+        proofDataUrl: t.proofDataUrl || null,
+        rejectionReason: t.rejection_reason || t.rejectionReason || null,
+        createdAt: createdStr,
+        paymentDate: t.payment_date || t.paymentDate || null,
+        verifiedAt: t.verified_at || t.verifiedAt || null
+    };
+}
+
 function getUserTransactions(userId){ return state.transactions.filter(t=>t.user_id===userId || t.studentId===userId); }
 function getPeriodById(periodId){ 
     return state.periods.find(p => String(p.id) === String(periodId)); 
@@ -247,7 +296,16 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
     }
 
     if (!res.ok) {
-        console.warn(`API ${endpoint} error ${res.status}:`, json);
+        console.warn(`API ${endpoint} status ${res.status}:`, json);
+        if (res.status === 401) {
+            state.currentUser = null;
+            state.role = null;
+            state.currentUserData = null;
+            if (state.currentPage !== 'login') {
+                showToast('Sesi Anda telah berakhir, silakan login kembali', 'warning');
+                navigateTo('login');
+            }
+        }
     }
 
     return json;
@@ -300,32 +358,7 @@ async function loadDataFromServer() {
         }
 
         if (txRes.transactions) {
-            state.transactions = txRes.transactions.map(t => ({
-                id: t.id,
-                user_id: t.user_id,
-                studentId: t.user_id,
-                studentName: t.student_name,
-                periodId: t.period_id,
-                periodIds: t.period_ids ? (Array.isArray(t.period_ids) ? t.period_ids : String(t.period_ids).split(',').map(Number)) : [],
-                periodLabel: t.period_label || '',
-                frequency: t.frequency || state.cashSettings.frequency,
-                amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
-                total_amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
-                method: t.method,
-                date: t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-                dateObj: new Date(t.created_at || new Date()),
-                status: t.status,
-                proof: t.proof ? {
-                    id: t.proof.id,
-                    file_name: t.proof.file_name || t.proof.filename,
-                    file_type: t.proof.file_type,
-                    file_size: t.proof.file_size,
-                    url: t.proof.url
-                } : null,
-                rejectionReason: t.rejection_reason,
-                createdAt: t.created_at,
-                verifiedAt: t.verified_at
-            }));
+            state.transactions = txRes.transactions.map(t => normalizeTransaction(t));
         }
 
         if (expRes.expenses) {
@@ -922,11 +955,12 @@ async function renderPembayaranPage() {
 
     const totalAmount = selectedPeriodList.reduce((sum, p) => sum + (p.amount || 0), 0);
 
+    const freqLabel = state.cashSettings.frequency === 'weekly' ? 'Mingguan' : 'Bulanan';
     return `
     ${renderHeader('Pembayaran Kas', true)}
     <div class="container">
         <div class="card mb-16">
-            <div class="card-header"><span class="card-title">Pilih Periode (${CLASS_FREQUENCY==='weekly'?'Mingguan':'Bulanan'})</span></div>
+            <div class="card-header"><span class="card-title">Pilih Periode (${freqLabel})</span></div>
             <div style="max-height:300px;overflow-y:auto;">
                 ${unpaidPeriods.length === 0 ? 
                     '<p class="text-center" style="color:var(--success);">Tidak ada tunggakan.</p>' :
@@ -1398,25 +1432,6 @@ function renderDetailPengumumanPage() {
 }
 
 // ==================== NOTIFIKASI ====================
-async function loadNotifications() {
-    try {
-        const res = await apiFetch('notifications.php');
-        if (res.notifications) {
-            state.notifications = res.notifications.map(n => ({
-                id: n.id,
-                type: n.type,
-                title: n.title,
-                message: n.message,
-                isRead: n.is_read === 1,
-                reference_type: n.reference_type,
-                reference_id: n.reference_id,
-                date: n.created_at
-            }));
-        }
-    } catch (err) {
-        console.warn('Gagal memuat notifikasi', err);
-    }
-}
 
 async function markNotificationRead(id) {
     try {
@@ -1504,7 +1519,8 @@ function renderKalenderPage() {
         html += `<div class="calendar-day ${isToday?'today':''}" onclick="showCalendarEvent(${d},${month},${year})">${d}${dotClass?`<span class="dot ${dotClass}"></span>`:''}</div>`;
     }
     html += '</div>';
-    return `${renderHeader('Kalender Kas', true)}<div class="container"><div class="card mb-16"><div class="flex justify-between items-center mb-8"><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===0?11:state.calendarMonth-1;if(state.calendarMonth===11)state.calendarYear--;renderPage()">←</button><span style="font-weight:700;">${months[month]} ${year}</span><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===11?0:state.calendarMonth+1;if(state.calendarMonth===0)state.calendarYear++;renderPage()">→</button></div>${html}<div style="display:flex;gap:12px;margin-top:16px;font-size:11px;color:var(--text-secondary);"><span>🟢 Lunas</span><span>🔴 Belum/Terlambat</span><span>🟡 Menunggu</span><span>🔵 Deadline</span></div></div><div class="card"><div class="card-header"><span class="card-title">Event Bulan Ini</span></div><p>📌 Jatuh tempo kas: ${CLASS_FREQUENCY==='weekly'?'setiap akhir minggu':'tanggal 20'}</p></div></div>`;
+    const dueInfoLabel = state.cashSettings.frequency === 'weekly' ? 'setiap akhir minggu' : (state.cashSettings.paymentDeadlineDays > 0 ? `${state.cashSettings.paymentDeadlineDays} hari setelah periode dimulai` : 'tanggal 20');
+    return `${renderHeader('Kalender Kas', true)}<div class="container"><div class="card mb-16"><div class="flex justify-between items-center mb-8"><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===0?11:state.calendarMonth-1;if(state.calendarMonth===11)state.calendarYear--;renderPage()">←</button><span style="font-weight:700;">${months[month]} ${year}</span><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===11?0:state.calendarMonth+1;if(state.calendarMonth===0)state.calendarYear++;renderPage()">→</button></div>${html}<div style="display:flex;gap:12px;margin-top:16px;font-size:11px;color:var(--text-secondary);"><span>🟢 Lunas</span><span>🔴 Belum/Terlambat</span><span>🟡 Menunggu</span><span>🔵 Deadline</span></div></div><div class="card"><div class="card-header"><span class="card-title">Event Bulan Ini</span></div><p>📌 Jatuh tempo kas: ${dueInfoLabel}</p></div></div>`;
 }
 
 function showCalendarEvent(day, month, year) {

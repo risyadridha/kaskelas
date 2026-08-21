@@ -140,14 +140,14 @@ Status:
 
 # BATCH 8 — FRONTEND CLEANUP
 
-- [ ] B8-01 Hilangkan hardcoded weekly/monthly amount.
-- [ ] B8-02 Hilangkan hardcoded frequency.
-- [ ] B8-03 Hilangkan hardcoded year/date.
-- [ ] B8-04 Hilangkan dummy production data.
-- [ ] B8-05 Hapus duplicate `loadNotifications()`.
-- [ ] B8-06 Hapus debug console.log.
-- [ ] B8-07 Perbaiki duplicate CSS.
-- [ ] B8-08 Tambahkan test IDs pada komponen penting.
+- [x] B8-01 Hilangkan hardcoded weekly/monthly amount.
+- [x] B8-02 Hilangkan hardcoded frequency.
+- [x] B8-03 Hilangkan hardcoded year/date.
+- [x] B8-04 Hilangkan dummy production data.
+- [x] B8-05 Hapus duplicate `loadNotifications()`.
+- [x] B8-06 Hapus debug console.log.
+- [x] B8-07 Perbaiki duplicate CSS.
+- [x] B8-08 Tambahkan test IDs pada komponen penting.
 
 
 # BATCH 9 — SECURITY FINAL
