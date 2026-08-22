@@ -1626,11 +1626,15 @@ async function renderStatistikPage() {
         }
 
         return `
-        ${renderHeader('Statistik Kelas (Bendahara)', true)}
+        ${renderHeader('Panel Kelola Bendahara', true)}
         <div class="container" data-testid="bendahara-dashboard">
-            <div class="card text-center mb-16">
-                <p style="font-size:14px;color:var(--text-secondary);">Saldo Kas Kelas</p>
-                <p style="font-size:36px;font-weight:800;color:var(--primary);">${formatRupiah(stats.saldo)}</p>
+            <div class="card admin-mode-card text-center mb-16">
+                <div class="flex justify-between items-center mb-12">
+                    <span class="badge-admin">🛡️ Mode Bendahara Admin</span>
+                    <span style="font-size:12px;opacity:0.8;">${escapeHtml(user.kelas || 'Kelas')}</span>
+                </div>
+                <p style="font-size:13px;opacity:0.9;">Saldo Kas Kelas (Live Backend)</p>
+                <p style="font-size:36px;font-weight:800;margin:6px 0;">${formatRupiah(stats.saldo)}</p>
             </div>
             <div class="stat-grid mb-16">
                 <div class="stat-card"><div class="stat-value" style="color:var(--success);">${formatRupiah(stats.total_income)}</div><div class="stat-label">Pemasukan Approved</div></div>
