@@ -9,36 +9,36 @@
 <body>
     <div class="app-shell" id="app">
         <div class="offline-banner" id="offlineBanner">📡 Anda sedang offline</div>
-        <aside class="sidebar" id="sidebar">
+        <aside class="sidebar" id="sidebar" data-testid="desktop-navigation">
             <div class="sidebar-brand">KasKelas</div>
             <nav class="sidebar-nav" id="sidebarNav">
                 <p class="nav-group-label">Utama</p>
-                <button class="nav-item" data-page="home"><span class="nav-icon">🏠</span> Dashboard</button>
-                <button class="nav-item" data-page="kas-saya"><span class="nav-icon">💰</span> Kas Saya</button>
-                <button class="nav-item" data-page="pembayaran"><span class="nav-icon">💳</span> Bayar Kas</button>
+                <button class="nav-item" data-page="home" data-testid="nav-home"><span class="nav-icon">🏠</span> Dashboard</button>
+                <button class="nav-item" data-page="kas-saya" data-testid="nav-kas-saya"><span class="nav-icon">💰</span> Kas Saya</button>
+                <button class="nav-item" data-page="pembayaran" data-testid="nav-pembayaran"><span class="nav-icon">💳</span> Bayar Kas</button>
                 <p class="nav-group-label">Keuangan</p>
-                <button class="nav-item" data-page="riwayat"><span class="nav-icon">📋</span> Riwayat</button>
-                <button class="nav-item" data-page="tunggakan"><span class="nav-icon">⚠️</span> Tunggakan</button>
-                <button class="nav-item" data-page="transparansi"><span class="nav-icon">📊</span> Transparansi</button>
-                <button class="nav-item" data-page="verifikasi"><span class="nav-icon">✅</span> Verifikasi</button>
-                <button class="nav-item" data-page="pengeluaran"><span class="nav-icon">💸</span> Pengeluaran</button>
+                <button class="nav-item" data-page="riwayat" data-testid="nav-riwayat"><span class="nav-icon">📋</span> Riwayat</button>
+                <button class="nav-item" data-page="tunggakan" data-testid="nav-tunggakan"><span class="nav-icon">⚠️</span> Tunggakan</button>
+                <button class="nav-item" data-page="transparansi" data-testid="nav-transparansi"><span class="nav-icon">📊</span> Transparansi</button>
+                <button class="nav-item" data-page="verifikasi" data-testid="nav-verifikasi"><span class="nav-icon">✅</span> Verifikasi</button>
+                <button class="nav-item" data-page="pengeluaran" data-testid="nav-pengeluaran"><span class="nav-icon">💸</span> Pengeluaran</button>
                 <p class="nav-group-label">Informasi</p>
-                <button class="nav-item" data-page="pengumuman"><span class="nav-icon">📢</span> Pengumuman</button>
-                <button class="nav-item" data-page="notifikasi"><span class="nav-icon">🔔</span> Notifikasi</button>
+                <button class="nav-item" data-page="pengumuman" data-testid="nav-pengumuman"><span class="nav-icon">📢</span> Pengumuman</button>
+                <button class="nav-item" data-page="notifikasi" data-testid="nav-notifikasi"><span class="nav-icon">🔔</span> Notifikasi</button>
                 <p class="nav-group-label nav-group-account">Akun</p>
-                <button class="nav-item" data-page="profil"><span class="nav-icon">👤</span> Profil</button>
-                <button class="nav-item" data-page="pengaturan"><span class="nav-icon">⚙️</span> Pengaturan</button>
+                <button class="nav-item" data-page="profil" data-testid="nav-profil"><span class="nav-icon">👤</span> Profil</button>
+                <button class="nav-item" data-page="pengaturan" data-testid="nav-pengaturan"><span class="nav-icon">⚙️</span> Pengaturan</button>
             </nav>
         </aside>
         <div class="main-content" id="mainContent">
             <div id="pageContent"></div>
         </div>
-        <nav class="bottom-nav" id="bottomNav">
-            <button class="nav-item" data-page="home"><span class="nav-icon">🏠</span> Home</button>
-            <button class="nav-item" data-page="kas-saya"><span class="nav-icon">💰</span> Kas</button>
-            <button class="nav-item" data-page="riwayat"><span class="nav-icon">📋</span> Riwayat</button>
-            <button class="nav-item" data-page="notifikasi"><span class="nav-icon">🔔</span> Notif</button>
-            <button class="nav-item" data-page="profil"><span class="nav-icon">👤</span> Profil</button>
+        <nav class="bottom-nav" id="bottomNav" data-testid="mobile-navigation">
+            <button class="nav-item" data-page="home" data-testid="mobile-nav-home"><span class="nav-icon">🏠</span> Home</button>
+            <button class="nav-item" data-page="kas-saya" data-testid="mobile-nav-kas"><span class="nav-icon">💰</span> Kas</button>
+            <button class="nav-item" data-page="riwayat" data-testid="mobile-nav-riwayat"><span class="nav-icon">📋</span> Riwayat</button>
+            <button class="nav-item" data-page="notifikasi" data-testid="mobile-nav-notif"><span class="nav-icon">🔔</span> Notif</button>
+            <button class="nav-item" data-page="profil" data-testid="mobile-nav-profil"><span class="nav-icon">👤</span> Profil</button>
         </nav>
         <div class="bottom-sheet-overlay" id="bsOverlay"></div>
         <div class="bottom-sheet" id="bottomSheet"><div class="bottom-sheet-handle"></div><div id="bsContent"></div></div>

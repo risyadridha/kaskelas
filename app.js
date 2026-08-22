@@ -19,8 +19,8 @@ const state = {
     notifications: [],
     activities: [],
     cashSettings: {
-        frequency: 'weekly',
-        defaultAmount: 3000,
+        frequency: null,
+        defaultAmount: null,
         paymentDeadlineDays: 0
     },
     theme: 'light',
@@ -719,11 +719,11 @@ function renderLoginPage() {
                 <h1>KasKelas</h1>
                 <p>Manajemen kas kelas untuk siswa</p>
             </div>
-            <section class="card login-card" aria-labelledby="loginTitle">
+            <section class="card login-card" aria-labelledby="loginTitle" data-testid="login-form">
                 <h2 id="loginTitle">Masuk</h2>
-                <div class="form-group"><label class="form-label" for="loginNis">NIS / Username</label><input type="text" class="form-input" id="loginNis" autocomplete="username"></div>
-                <div class="form-group"><label class="form-label" for="loginPass">Password</label><input type="password" class="form-input" id="loginPass" autocomplete="current-password"></div>
-                <button class="btn btn-primary btn-block btn-lg" id="btnLogin" onclick="handleLogin()">Masuk</button>
+                <div class="form-group"><label class="form-label" for="loginNis">NIS / Username</label><input type="text" class="form-input" id="loginNis" data-testid="login-username" autocomplete="username"></div>
+                <div class="form-group"><label class="form-label" for="loginPass">Password</label><input type="password" class="form-input" id="loginPass" data-testid="login-password" autocomplete="current-password"></div>
+                <button class="btn btn-primary btn-block btn-lg" id="btnLogin" data-testid="login-submit" onclick="handleLogin()">Masuk</button>
             </section>
         </div>
     </main>`;
@@ -986,14 +986,11 @@ async function renderPembayaranPage() {
             <p>Total yang harus dibayar:</p>
             <p style="font-size:24px;font-weight:800;color:var(--primary);">${formatRupiah(totalAmount)}</p>
         </div>
-        <button class="btn btn-primary btn-block btn-lg" onclick="handlePaymentSubmit()">💳 Bayar Sekarang</button>
+        <button class="btn btn-primary btn-block btn-lg" data-testid="payment-submit" onclick="handlePaymentSubmit()">💳 Bayar Sekarang</button>
     </div>`;
 }
 
 function togglePeriodSelection(periodId) {
-    console.log('toggle dipanggil dengan id:', periodId);
-    console.log('selectedPeriods sebelum:', JSON.stringify(state.selectedPeriods));
-
     const id = String(periodId);
     const idx = state.selectedPeriods.findIndex(selId => String(selId) === id);
     if (idx > -1) {
@@ -1001,8 +998,6 @@ function togglePeriodSelection(periodId) {
     } else {
         state.selectedPeriods.push(id);
     }
-
-    console.log('selectedPeriods sesudah:', JSON.stringify(state.selectedPeriods));
     renderPage();
 }
 async function handlePaymentSubmit() {
@@ -1058,9 +1053,6 @@ async function processPayment() {
         .map(id => getPeriodById(id))
         .filter(Boolean);
 
-    console.log('selectedPeriods:', state.selectedPeriods);
-    console.log('periods:', periods);
-
     if (periods.length === 0) {
         showToast('Tidak ada periode valid untuk dibayar', 'error');
         closeBottomSheet();
@@ -1070,18 +1062,12 @@ async function processPayment() {
     const periodIds = periods.map(p => parseInt(p.id));
     const totalAmount = periods.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
-    console.log('periodIds:', periodIds);
-    console.log('method:', state.selectedMethod);
-    console.log('total:', totalAmount);
-
     try {
         const data = await apiFetch('submit_payment.php', 'POST', {
             period_ids: periodIds,
             method: state.selectedMethod,
             total: totalAmount
         });
-
-        console.log('Response submit_payment:', data);
 
         if (data.success) {
             state.selectedPeriods = [];
@@ -1534,11 +1520,11 @@ function showCalendarEvent(day, month, year) {
 }
 
 function showAddPeriodModal() {
-    const defaultAmt = state.cashSettings.defaultAmount || 3000;
+    const defaultAmt = state.cashSettings.defaultAmount !== null ? state.cashSettings.defaultAmount : '';
     const freq = state.cashSettings.frequency || 'weekly';
     showModal(`
         <h3>Tambah Periode Kas Baru</h3>
-        <div class="form-group"><label class="form-label">Nama Periode</label><input type="text" id="pName" class="form-input" placeholder="e.g. Minggu 1 Sep 2026"></div>
+        <div class="form-group"><label class="form-label">Nama Periode</label><input type="text" id="pName" class="form-input" placeholder="e.g. Minggu 1 Sep ${new Date().getFullYear()}"></div>
         <div class="form-group"><label class="form-label">Tanggal Mulai</label><input type="date" id="pStart" class="form-input"></div>
         <div class="form-group"><label class="form-label">Tanggal Selesai</label><input type="date" id="pEnd" class="form-input"></div>
         <div class="form-group"><label class="form-label">Jatuh Tempo</label><input type="date" id="pDue" class="form-input"></div>
@@ -1612,7 +1598,7 @@ async function renderStatistikPage() {
 
         return `
         ${renderHeader('Statistik Kelas (Bendahara)', true)}
-        <div class="container">
+        <div class="container" data-testid="bendahara-dashboard">
             <div class="card text-center mb-16">
                 <p style="font-size:14px;color:var(--text-secondary);">Saldo Kas Kelas</p>
                 <p style="font-size:36px;font-weight:800;color:var(--primary);">${formatRupiah(stats.saldo)}</p>
