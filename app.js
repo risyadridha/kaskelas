@@ -732,9 +732,9 @@ async function renderPage() {
 function renderHeader(title, showBack = false) {
     return `
     <div class="top-header">
-        ${showBack ? `<button class="back-btn" onclick="goBack()">← Kembali</button>` : ''}
+        ${showBack ? `<button class="back-btn" onclick="goBack()">${getIcon('arrow-left')} Kembali</button>` : ''}
         <span class="page-title">${title}</span>
-        <button class="header-action" onclick="navigateTo('search')" aria-label="Cari">🔍</button>
+        <button class="header-action" onclick="navigateTo('search')" aria-label="Cari">${getIcon('search')}</button>
     </div>`;
 }
 

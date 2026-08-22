@@ -390,8 +390,30 @@ textarea.form-input { resize:vertical; min-height:100px; }
 .quick-action-btn:active {
     transform: scale(0.95);
 }
+.svg-icon {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    vertical-align: middle;
+    display: inline-block;
+    flex-shrink: 0;
+}
+.nav-icon .svg-icon {
+    width: 22px;
+    height: 22px;
+}
+.qa-icon .svg-icon {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 4px;
+}
 .quick-action-btn .qa-icon {
-    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     margin-bottom: 4px;
 }
 .list-item {
