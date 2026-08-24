@@ -30,23 +30,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $classId = $user['class_id'];
 
-    $stmt = $pdo->prepare("
-        INSERT INTO cash_settings (class_id, frequency, default_amount, payment_deadline_days, bank_name, account_number, account_holder)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            frequency = VALUES(frequency),
-            default_amount = VALUES(default_amount),
-            payment_deadline_days = VALUES(payment_deadline_days),
-            bank_name = VALUES(bank_name),
-            account_number = VALUES(account_number),
-            account_holder = VALUES(account_holder)
-    ");
-    $stmt->execute([$classId, $frequency, $defaultAmount, $deadlineDays, $bankName, $accountNumber, $accountHolder]);
-
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'update_cash_settings', 'cash_settings', $classId, "Mengubah pengaturan kas kelas $classId");
+    $validFrequencies = ['weekly', 'monthly'];
+    if (!in_array($frequency, $validFrequencies, true)) {
+        json_response(['error' => 'Frekuensi kas tidak valid'], 400);
+    }
+    if ($defaultAmount < 0 || $deadlineDays < 0) {
+        json_response(['error' => 'Nominal atau batas hari tidak valid'], 400);
     }
 
-    json_response(['success' => true]);
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO cash_settings (class_id, frequency, default_amount, payment_deadline_days, bank_name, account_number, account_holder)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                frequency = VALUES(frequency),
+                default_amount = VALUES(default_amount),
+                payment_deadline_days = VALUES(payment_deadline_days),
+                bank_name = VALUES(bank_name),
+                account_number = VALUES(account_number),
+                account_holder = VALUES(account_holder)
+        ");
+        $stmt->execute([$classId, $frequency, $defaultAmount, $deadlineDays, $bankName, $accountNumber, $accountHolder]);
+
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'update_cash_settings', 'cash_settings', $classId, "Mengubah pengaturan kas kelas $classId");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menyimpan pengaturan kas'], 500);
+    }
 }
 ?>

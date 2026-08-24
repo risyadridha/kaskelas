@@ -26,9 +26,13 @@ if (empty($phone) || !preg_match('/^[0-9]{10,15}$/', $phone)) {
 
 $userId = $_SESSION['user_id'];
 
-// Update hanya email dan phone berdasarkan session user
-$stmt = $pdo->prepare("UPDATE users SET email = ?, phone = ? WHERE id = ?");
-$stmt->execute([$email, $phone, $userId]);
+try {
+    $stmt = $pdo->prepare("UPDATE users SET email = ?, phone = ? WHERE id = ?");
+    $stmt->execute([$email, $phone, $userId]);
+} catch (Exception $e) {
+    error_log($e->getMessage());
+    json_response(['error' => 'Gagal memperbarui profil'], 500);
+}
 
 if ($stmt->rowCount() > 0) {
     json_response(['success' => true]);

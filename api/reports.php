@@ -96,18 +96,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(['error' => 'Laporan tidak ditemukan'], 404);
     }
 
-    $stmt = $pdo->prepare("
-        UPDATE reports
-        SET status = ?, response = ?
-        WHERE id = ?
-    ");
-    $stmt->execute([$status, $response, $reportId]);
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE reports
+            SET status = ?, response = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$status, $response, $reportId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'respond_report', 'reports', $reportId, "Merespons laporan ID $reportId status $status");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'respond_report', 'reports', $reportId, "Merespons laporan ID $reportId status $status");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal memperbarui laporan'], 500);
     }
-
-    json_response(['success' => true]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -130,6 +135,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($title) || empty($description)) {
         json_response(['error' => 'Judul dan deskripsi wajib diisi'], 400);
+    }
+
+    $validCategories = ['pembayaran', 'akun', 'bukti_pembayaran', 'data_kas', 'aplikasi', 'lainnya'];
+    if (!in_array($category, $validCategories, true)) {
+        json_response(['error' => 'Kategori laporan tidak valid'], 400);
     }
 
     if ($transactionId !== null && $transactionId !== '') {
@@ -171,17 +181,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $attachmentPath = 'reports/' . $fileName;
     }
 
-    $stmt = $pdo->prepare("
-        INSERT INTO reports (user_id, category, title, description, attachment, transaction_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([$userId, $category, $title, $description, $attachmentPath, $transactionId]);
-    $newReportId = $pdo->lastInsertId();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO reports (user_id, category, title, description, attachment, transaction_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $category, $title, $description, $attachmentPath, $transactionId]);
+        $newReportId = $pdo->lastInsertId();
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'create_report', 'reports', $newReportId, "Membuat laporan '{$title}'");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'create_report', 'reports', $newReportId, "Membuat laporan '{$title}'");
+        }
+
+        json_response(['success' => true, 'id' => $newReportId, 'attachment' => $attachmentPath]);
+    } catch (Exception $e) {
+        if (!empty($attachmentPath)) {
+            $orphanPath = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $attachmentPath);
+            if (file_exists($orphanPath)) {
+                @unlink($orphanPath);
+            }
+        }
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal mengirim laporan'], 500);
     }
-
-    json_response(['success' => true, 'id' => $newReportId, 'attachment' => $attachmentPath]);
 }
 ?>

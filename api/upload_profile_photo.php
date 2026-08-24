@@ -34,9 +34,9 @@ if (!in_array($extension, $allowedExt)) {
 }
 
 $handle = fopen($file['tmp_name'], 'rb');
-$firstBytes = fread($handle, 4);
+$headerBytes = fread($handle, 512);
 fclose($handle);
-if (strpos($firstBytes, '<?php') !== false || strpos($firstBytes, '#!/') !== false) {
+if ($headerBytes !== false && (stripos($headerBytes, '<?php') !== false || strpos($headerBytes, '#!/') === 0)) {
     json_response(['error' => 'File tidak valid'], 400);
 }
 
@@ -59,8 +59,16 @@ $stmtOld = $pdo->prepare("SELECT profile_photo FROM users WHERE id = ?");
 $stmtOld->execute([$userId]);
 $oldPhoto = $stmtOld->fetchColumn();
 
-$stmt = $pdo->prepare("UPDATE users SET profile_photo = ? WHERE id = ?");
-$stmt->execute([$photoPath, $userId]);
+try {
+    $stmt = $pdo->prepare("UPDATE users SET profile_photo = ? WHERE id = ?");
+    $stmt->execute([$photoPath, $userId]);
+} catch (Exception $e) {
+    if (file_exists($uploadPath)) {
+        @unlink($uploadPath);
+    }
+    error_log($e->getMessage());
+    json_response(['error' => 'Gagal menyimpan foto profil'], 500);
+}
 
 if ($oldPhoto && $oldPhoto !== $photoPath) {
     $oldFilePath = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $oldPhoto);

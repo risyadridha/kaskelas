@@ -35,8 +35,13 @@ if (!$user || !password_verify($currentPassword, $user['password_hash'])) {
 
 $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
 
-$stmtUpdate = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
-$stmtUpdate->execute([$newHash, $userId]);
+try {
+    $stmtUpdate = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+    $stmtUpdate->execute([$newHash, $userId]);
+} catch (Exception $e) {
+    error_log($e->getMessage());
+    json_response(['error' => 'Gagal mengubah password'], 500);
+}
 
 if (function_exists('log_audit')) {
     log_audit($pdo, $userId, 'change_password', 'users', $userId, "Mengubah password akun");

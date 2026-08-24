@@ -63,13 +63,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_response(['error' => 'Notifikasi tidak ditemukan'], 404);
         }
 
-        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
-        $stmt->execute([$notificationId, $userId]);
+        try {
+            $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
+            $stmt->execute([$notificationId, $userId]);
+        } catch (Exception $e) {
+            error_log($e->getMessage());
+            json_response(['error' => 'Gagal memperbarui notifikasi'], 500);
+        }
         json_response(['success' => true]);
     } else {
-        // Tandai semua dibaca untuk user_id ini saja
-        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
-        $stmt->execute([$userId]);
+        try {
+            // Tandai semua dibaca untuk user_id ini saja
+            $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
+            $stmt->execute([$userId]);
+        } catch (Exception $e) {
+            error_log($e->getMessage());
+            json_response(['error' => 'Gagal memperbarui notifikasi'], 500);
+        }
         json_response(['success' => true]);
     }
 }

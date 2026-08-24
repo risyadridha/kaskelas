@@ -51,11 +51,11 @@ if (!in_array($extension, $allowedExt)) {
     json_response(['error' => 'Ekstensi file tidak diizinkan'], 400);
 }
 
-// Pastikan file bukan executable (cek isi file tidak boleh PHP/script)
+// Pastikan file bukan script (periksa 512 byte pertama, bukan hanya 4 byte)
 $handle = fopen($file['tmp_name'], 'rb');
-$firstBytes = fread($handle, 4);
+$headerBytes = fread($handle, 512);
 fclose($handle);
-if (strpos($firstBytes, '<?php') !== false || strpos($firstBytes, '#!/') !== false) {
+if ($headerBytes !== false && (stripos($headerBytes, '<?php') !== false || strpos($headerBytes, '#!/') === 0)) {
     json_response(['error' => 'File tidak valid'], 400);
 }
 

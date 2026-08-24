@@ -77,6 +77,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         json_response(['error' => 'Nama dan nominal wajib diisi'], 400);
     }
 
+    $validCategories = ['kebersihan', 'perlengkapan', 'kegiatan', 'dekorasi', 'sosial', 'lainnya'];
+    if (!in_array($category, $validCategories, true)) {
+        json_response(['error' => 'Kategori pengeluaran tidak valid'], 400);
+    }
+    if (!valid_date($expenseDate)) {
+        json_response(['error' => 'Tanggal pengeluaran tidak valid'], 400);
+    }
+
     $receiptFile = null;
     if (isset($_FILES['receipt']) && $_FILES['receipt']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['receipt'];
@@ -106,18 +114,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $receiptFile = 'receipts/' . $fileName;
     }
 
-    $stmt = $pdo->prepare("
-        INSERT INTO expenses (class_id, created_by, name, category, amount, description, expense_date, receipt_file)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([$classId, $userId, $name, $category, $amount, $description, $expenseDate, $receiptFile]);
-    $expenseId = $pdo->lastInsertId();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO expenses (class_id, created_by, name, category, amount, description, expense_date, receipt_file)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$classId, $userId, $name, $category, $amount, $description, $expenseDate, $receiptFile]);
+        $expenseId = $pdo->lastInsertId();
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'create_expense', 'expenses', $expenseId, "Membuat pengeluaran $name sebesar $amount");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'create_expense', 'expenses', $expenseId, "Membuat pengeluaran $name sebesar $amount");
+        }
+
+        json_response(['success' => true, 'id' => $expenseId, 'receipt_file' => $receiptFile]);
+    } catch (Exception $e) {
+        // Hindari file orphan jika INSERT gagal setelah move_uploaded_file
+        if (!empty($receiptFile)) {
+            $orphanPath = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $receiptFile);
+            if (file_exists($orphanPath)) {
+                @unlink($orphanPath);
+            }
+        }
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menyimpan pengeluaran'], 500);
     }
-
-    json_response(['success' => true, 'id' => $expenseId, 'receipt_file' => $receiptFile]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
@@ -136,6 +156,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(['error' => 'Data tidak valid'], 400);
     }
 
+    $validCategories = ['kebersihan', 'perlengkapan', 'kegiatan', 'dekorasi', 'sosial', 'lainnya'];
+    if (!in_array($category, $validCategories, true)) {
+        json_response(['error' => 'Kategori pengeluaran tidak valid'], 400);
+    }
+    if (!valid_date($expenseDate)) {
+        json_response(['error' => 'Tanggal pengeluaran tidak valid'], 400);
+    }
+
     // Check ownership
     $stmt = $pdo->prepare("SELECT id FROM expenses WHERE id = ? AND class_id = ?");
     $stmt->execute([$expenseId, $classId]);
@@ -143,18 +171,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(['error' => 'Pengeluaran tidak ditemukan'], 404);
     }
 
-    $stmt = $pdo->prepare("
-        UPDATE expenses
-        SET name = ?, category = ?, amount = ?, description = ?, expense_date = ?
-        WHERE id = ? AND class_id = ?
-    ");
-    $stmt->execute([$name, $category, $amount, $description, $expenseDate, $expenseId, $classId]);
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE expenses
+            SET name = ?, category = ?, amount = ?, description = ?, expense_date = ?
+            WHERE id = ? AND class_id = ?
+        ");
+        $stmt->execute([$name, $category, $amount, $description, $expenseDate, $expenseId, $classId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'edit_expense', 'expenses', $expenseId, "Mengubah pengeluaran $name");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'edit_expense', 'expenses', $expenseId, "Mengubah pengeluaran $name");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal memperbarui pengeluaran'], 500);
     }
-
-    json_response(['success' => true]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
@@ -176,18 +209,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         json_response(['error' => 'Pengeluaran tidak ditemukan'], 404);
     }
 
-    $stmt = $pdo->prepare("DELETE FROM expenses WHERE id = ? AND class_id = ?");
-    $stmt->execute([$expenseId, $classId]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM expenses WHERE id = ? AND class_id = ?");
+        $stmt->execute([$expenseId, $classId]);
+
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'delete_expense', 'expenses', $expenseId, "Menghapus pengeluaran ID $expenseId");
+        }
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menghapus pengeluaran'], 500);
+    }
 
     if (!empty($exp['receipt_file'])) {
         $receiptPath = rtrim($proofStorageDir, '/\\') . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $exp['receipt_file']);
         if (file_exists($receiptPath)) {
             @unlink($receiptPath);
         }
-    }
-
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'delete_expense', 'expenses', $expenseId, "Menghapus pengeluaran ID $expenseId");
     }
 
     json_response(['success' => true]);

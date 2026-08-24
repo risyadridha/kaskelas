@@ -15,6 +15,14 @@ if (!$user) json_response(['error' => 'User tidak ditemukan'], 404);
 $classId = $user['class_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 20;
+    $offset = ($page - 1) * $limit;
+
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM announcements WHERE class_id = ?");
+    $countStmt->execute([$classId]);
+    $total = (int)$countStmt->fetchColumn();
+
     // List pengumuman + status baca
     $stmt = $pdo->prepare("
         SELECT a.id, a.title, a.content, a.category, a.priority, a.published_at,
@@ -24,10 +32,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         JOIN users u ON u.id = a.created_by
         WHERE a.class_id = ?
         ORDER BY a.published_at DESC
+        LIMIT ? OFFSET ?
     ");
-    $stmt->execute([$userId, $classId]);
+    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $classId, PDO::PARAM_INT);
+    $stmt->bindValue(3, $limit, PDO::PARAM_INT);
+    $stmt->bindValue(4, $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    json_response(['announcements' => $announcements]);
+    json_response([
+        'announcements' => $announcements,
+        'pagination' => [
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => ceil($total / $limit)
+        ]
+    ]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -45,11 +66,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$stmt->fetch()) json_response(['error' => 'Pengumuman tidak ditemukan'], 404);
 
         // Insert ke announcement_reads jika belum ada
-        $stmt = $pdo->prepare("
-            INSERT IGNORE INTO announcement_reads (announcement_id, user_id)
-            VALUES (?, ?)
-        ");
-        $stmt->execute([$announcementId, $userId]);
+        try {
+            $stmt = $pdo->prepare("
+                INSERT IGNORE INTO announcement_reads (announcement_id, user_id)
+                VALUES (?, ?)
+            ");
+            $stmt->execute([$announcementId, $userId]);
+        } catch (Exception $e) {
+            error_log($e->getMessage());
+            json_response(['error' => 'Gagal menandai pengumuman'], 500);
+        }
         json_response(['success' => true]);
     }
 
@@ -65,18 +91,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         json_response(['error' => 'Judul dan isi wajib diisi'], 400);
     }
 
-    $stmt = $pdo->prepare("
-        INSERT INTO announcements (class_id, created_by, title, content, category, priority, published_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([$classId, $userId, $title, $content, $category, $priority, $publishedAt]);
-    $announcementId = $pdo->lastInsertId();
-
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'create_announcement', 'announcements', $announcementId, "Membuat pengumuman $title");
+    $validCategories = ['kas', 'kegiatan', 'informasi_kelas', 'penting'];
+    $validPriorities = ['normal', 'important'];
+    if (!in_array($category, $validCategories, true)) {
+        json_response(['error' => 'Kategori pengumuman tidak valid'], 400);
+    }
+    if (!in_array($priority, $validPriorities, true)) {
+        json_response(['error' => 'Prioritas tidak valid'], 400);
     }
 
-    json_response(['success' => true, 'id' => $announcementId]);
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO announcements (class_id, created_by, title, content, category, priority, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$classId, $userId, $title, $content, $category, $priority, $publishedAt]);
+        $announcementId = $pdo->lastInsertId();
+
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'create_announcement', 'announcements', $announcementId, "Membuat pengumuman $title");
+        }
+
+        json_response(['success' => true, 'id' => $announcementId]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menyimpan pengumuman'], 500);
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
@@ -94,6 +134,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(['error' => 'Judul dan isi wajib diisi'], 400);
     }
 
+    $validCategories = ['kas', 'kegiatan', 'informasi_kelas', 'penting'];
+    $validPriorities = ['normal', 'important'];
+    if (!in_array($category, $validCategories, true)) {
+        json_response(['error' => 'Kategori pengumuman tidak valid'], 400);
+    }
+    if (!in_array($priority, $validPriorities, true)) {
+        json_response(['error' => 'Prioritas tidak valid'], 400);
+    }
+
     // Check ownership
     $stmt = $pdo->prepare("SELECT id FROM announcements WHERE id = ? AND class_id = ?");
     $stmt->execute([$announcementId, $classId]);
@@ -101,18 +150,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
         json_response(['error' => 'Pengumuman tidak ditemukan'], 404);
     }
 
-    $stmt = $pdo->prepare("
-        UPDATE announcements
-        SET title = ?, content = ?, category = ?, priority = ?
-        WHERE id = ? AND class_id = ?
-    ");
-    $stmt->execute([$title, $content, $category, $priority, $announcementId, $classId]);
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE announcements
+            SET title = ?, content = ?, category = ?, priority = ?
+            WHERE id = ? AND class_id = ?
+        ");
+        $stmt->execute([$title, $content, $category, $priority, $announcementId, $classId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'edit_announcement', 'announcements', $announcementId, "Mengubah pengumuman $title");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'edit_announcement', 'announcements', $announcementId, "Mengubah pengumuman $title");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal memperbarui pengumuman'], 500);
     }
-
-    json_response(['success' => true]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
@@ -133,13 +187,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
         json_response(['error' => 'Pengumuman tidak ditemukan'], 404);
     }
 
-    $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = ? AND class_id = ?");
-    $stmt->execute([$announcementId, $classId]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM announcements WHERE id = ? AND class_id = ?");
+        $stmt->execute([$announcementId, $classId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'delete_announcement', 'announcements', $announcementId, "Menghapus pengumuman ID $announcementId");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'delete_announcement', 'announcements', $announcementId, "Menghapus pengumuman ID $announcementId");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menghapus pengumuman'], 500);
     }
-
-    json_response(['success' => true]);
 }
 ?>

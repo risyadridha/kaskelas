@@ -193,3 +193,29 @@ Status:
 
 - [x] READY FOR CLASS PILOT
 - [x] READY FOR PRODUCTION
+
+# BATCH 11 — Bendahara Management UI (frontend, API existing)
+
+## Status per modul (diverifikasi via E2E HTTP 40 assertion)
+
+- [x] B11-01 Expense management (tambah/edit/hapus + receipt upload) - PASS
+- [x] B11-02 Announcement management (buat/edit/hapus + read tracking siswa) - PASS
+- [x] B11-03 Period edit (PUT periods.php, tanpa nominal hardcoded) - PASS
+- [x] B11-04 Cash settings bendahara (halaman khusus, reload dari API) - PASS
+- [x] B11-05 Student/account management (tambah/edit/nonaktif soft-delete) - PASS
+- [x] B11-06 Laporan masuk bendahara (list/detail/respons/status + attachment) - PASS
+- [x] B11-07 Notification broadcast ke kelas - PASS
+- [x] B11-08 Resubmit proof via upload_proof.php nyata (ditolak -> menunggu) - PASS
+- [x] B11-09 Hubungi = tel: link memakai kontak yang sudah tampil; bukan fake toast
+
+## Regression B1-B10 + Security
+
+- [x] Cross-class deny (expense/announcement/period/report/settings/students)
+- [x] Role siswa DENY semua endpoint management
+- [x] CSRF/auth/class-isolation/payment-locking/duplicate-protection tetap utuh
+
+## Catatan
+
+- Receipt expense tersimpan non-publik (storage di luar docroot); VIEWING receipt
+  butuh endpoint terproteksi baru -> BLOCKED sesuai aturan anti-endpoint-baru.
+- Password default siswa dibuat backend; frontend tidak menampilkan plaintext.

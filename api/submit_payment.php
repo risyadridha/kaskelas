@@ -59,7 +59,9 @@ try {
     }
 
     $totalAmount = 0;
-    $existingStmt = $pdo->prepare("SELECT t.id FROM transactions t JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.user_id = ? AND ti.period_id = ? AND t.status IN ('menunggu','berhasil') LIMIT 1");
+    // FOR UPDATE: baca data terbaru (bukan snapshot MVCC) + kunci baris agar
+    // dua request paralel tidak saling lolos dari cek duplikasi.
+    $existingStmt = $pdo->prepare("SELECT t.id FROM transactions t JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.user_id = ? AND ti.period_id = ? AND t.status IN ('menunggu','berhasil') LIMIT 1 FOR UPDATE");
     foreach ($validPeriods as $period) {
         $existingStmt->execute([$userId, $period['id']]);
         if ($existingStmt->fetch()) {

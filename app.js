@@ -42,8 +42,8 @@ const state = {
     calendarYear: new Date().getFullYear(),
     calendarMonth: new Date().getMonth(),
     transparansiMonth: new Date().getMonth(),
+    transparansiYear: new Date().getFullYear(),
     selectedUploadTxId: null,
-    txCounter: 1000,
 };
 
 // ==================== SVG ICON SYSTEM ====================
@@ -138,7 +138,6 @@ function normalizeTransaction(t) {
         dateObj: new Date(createdStr),
         status: t.status || 'menunggu',
         proof: proofObj,
-        proofDataUrl: t.proofDataUrl || null,
         rejectionReason: t.rejection_reason || t.rejectionReason || null,
         createdAt: createdStr,
         paymentDate: t.payment_date || t.paymentDate || null,
@@ -207,13 +206,6 @@ function calculateProgress(userId) {
     return { lunasCount, totalPeriods, rate };
 }
 
-function getTimeliness(transaction, period) {
-    if (!transaction || !period) return null;
-    const paymentDate = new Date(transaction.date);
-    const dueDate = new Date(period.dueDate);
-    return paymentDate <= dueDate ? 'tepat_waktu' : 'terlambat';
-}
-
 function getStatusLabel(status) {
     switch(status) {
         case 'lunas': return 'Lunas';
@@ -232,19 +224,6 @@ function getStatusBadgeClass(status) {
         case 'terlambat': return 'badge-danger';
         default: return 'badge-neutral';
     }
-}
-
-function getStudentOverallStatus(studentId) {
-    let hasMenunggu = false;
-    let allLunas = true;
-    for (const p of state.periods) {
-        const st = getPeriodStatusForUser(p.id, studentId);
-        if (st === 'menunggu') hasMenunggu = true;
-        if (st !== 'lunas') allLunas = false;
-    }
-    if (allLunas) return 'lunas';
-    if (hasMenunggu) return 'menunggu';
-    return 'belum';
 }
 
 function addNotification(type, data) {
@@ -327,6 +306,7 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
     if (!res.ok) {
         console.warn(`API ${endpoint} status ${res.status}:`, json);
         if (res.status === 401) {
+            csrfToken = null; // sesi berakhir -> token lama pasti tidak berlaku lagi
             state.currentUser = null;
             state.role = null;
             state.currentUserData = null;
@@ -335,39 +315,65 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
                 navigateTo('login');
             }
         }
+        // Token CSRF basi (mis. sesi baru setelah logout) -> paksa ambil ulang di request berikutnya
+        if (res.status === 403 && json && typeof json.error === 'string' && /CSRF/i.test(json.error)) {
+            csrfToken = null;
+        }
     }
 
     return json;
 }
 
+// Mengambil seluruh halaman data dari endpoint yang dipaginasi backend
+async function apiFetchAll(endpoint, listKey) {
+    const limit = 100;
+    let page = 1;
+    let out = [];
+    for (;;) {
+        const sep = endpoint.includes('?') ? '&' : '?';
+        const res = await apiFetch(`${endpoint}${sep}page=${page}&limit=${limit}`);
+        if (!res || !Array.isArray(res[listKey])) break;
+        out = out.concat(res[listKey]);
+        const totalPages = Number(res.pagination && res.pagination.total_pages) || page;
+        if (page >= totalPages || res[listKey].length === 0) break;
+        page++;
+    }
+    return out;
+}
+
 // ==================== INISIALISASI DATA ====================
 async function loadDataFromServer() {
     try {
-        const endpoints = [
-            'current_user.php',
-            'periods.php',
-            'transactions.php',
-            'expenses.php',
-            'announcements.php',
-            'notifications.php',
-            'activities.php',
-            'students.php',
-            'user_settings.php',
-            'reports.php'
+        const requests = [
+            apiFetch('current_user.php'),
+            apiFetch('periods.php'),
+            apiFetchAll('transactions.php', 'transactions'),
+            apiFetchAll('expenses.php', 'expenses'),
+            apiFetchAll('announcements.php', 'announcements'),
+            apiFetchAll('notifications.php', 'notifications'),
+            apiFetchAll('activities.php', 'activities'),
+            apiFetch('students.php'),
+            apiFetch('user_settings.php'),
+            apiFetchAll('reports.php', 'reports'),
+            apiFetch('cash_settings.php')
         ];
 
-        const results = await Promise.all(endpoints.map(ep => apiFetch(ep)));
+        // Satu endpoint gagal tidak boleh menggagalkan seluruh pemuatan data
+        const results = await Promise.all(requests.map(p => p.catch(err => {
+            console.warn('Gagal memuat sebagian data:', err);
+            return null;
+        })));
 
-        const [userRes, periodsRes, txRes, expRes, annRes, notifRes, actRes, studentsRes, settingsRes, reportsRes] = results;
+        const [userRes, periodsRes, txRes, expRes, annRes, notifRes, actRes, studentsRes, settingsRes, reportsRes, cashRes] = results;
 
-        if (userRes.user) {
+        if (userRes?.user) {
             state.currentUserData = userRes.user;
-            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'XII RPL 3';
+            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'Kelas';
             state.currentUser = userRes.user.id;
             state.role = userRes.user.role;
         }
 
-        if (periodsRes.periods) {
+        if (periodsRes?.periods) {
             state.periods = periodsRes.periods.map(p => ({
                 id: p.id,
                 frequency: p.frequency,
@@ -386,11 +392,11 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (txRes.transactions) {
+        if (txRes?.transactions) {
             state.transactions = txRes.transactions.map(t => normalizeTransaction(t));
         }
 
-        if (expRes.expenses) {
+        if (expRes?.expenses) {
             state.expenses = expRes.expenses.map(e => ({
                 id: e.id,
                 name: e.name,
@@ -404,7 +410,7 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (annRes.announcements) {
+        if (annRes?.announcements) {
             state.announcements = annRes.announcements.map(a => ({
                 id: a.id,
                 title: a.title,
@@ -416,20 +422,20 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (notifRes.notifications) {
+        if (notifRes?.notifications) {
             state.notifications = notifRes.notifications.map(n => ({
                 id: n.id,
                 type: n.type,
                 title: n.title,
                 message: n.message,
-                isRead: n.is_read === 1,
+                isRead: Number(n.is_read) === 1,
                 reference_type: n.reference_type,
                 reference_id: n.reference_id,
                 date: n.created_at
             }));
         }
 
-        if (actRes.activities) {
+        if (actRes?.activities) {
             state.activities = actRes.activities.map(a => ({
                 id: a.id,
                 type: a.type,
@@ -439,7 +445,7 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (studentsRes.students) {
+        if (studentsRes?.students) {
             state.students = studentsRes.students.map(s => ({
                 id: s.id,
                 name: s.full_name,
@@ -448,21 +454,22 @@ async function loadDataFromServer() {
                 phone: s.phone,
                 nis: s.nis,
                 absenNumber: s.attendance_number,
-                kelas: s.kelas || 'XII RPL 3',
-                status: s.status
+                kelas: s.kelas || state.currentUserData?.kelas || 'Kelas',
+                status: s.status,
+                user_status: s.user_status || 'active'
             }));
         }
 
-        if (settingsRes.settings) {
+        if (settingsRes?.settings) {
             state.reminderSettings = {
-                paymentReminder: settingsRes.settings.payment_reminder === 1,
-                announcementNotif: settingsRes.settings.announcement_notif === 1,
-                soundNotif: settingsRes.settings.sound_notif === 1
+                paymentReminder: Number(settingsRes.settings.payment_reminder) === 1,
+                announcementNotif: Number(settingsRes.settings.announcement_notif) === 1,
+                soundNotif: Number(settingsRes.settings.sound_notif) === 1
             };
             state.theme = settingsRes.settings.theme || 'light';
         }
 
-        if (reportsRes.reports) {
+        if (reportsRes?.reports) {
             state.userReports = reportsRes.reports.map(r => ({
                 id: r.id,
                 userId: r.user_id,
@@ -471,8 +478,22 @@ async function loadDataFromServer() {
                 desc: r.description,
                 transactionId: r.transaction_id,
                 status: r.status,
+                attachment: r.attachment,
+                response: r.response,
                 createdAt: r.created_at
             }));
+        }
+
+        if (cashRes?.cash_settings) {
+            const cs = cashRes.cash_settings;
+            state.cashSettings = {
+                frequency: cs.frequency || 'monthly',
+                defaultAmount: parseFloat(cs.default_amount || 0),
+                paymentDeadlineDays: parseInt(cs.payment_deadline_days || 0),
+                bankName: cs.bank_name || null,
+                accountNumber: cs.account_number || null,
+                accountHolder: cs.account_holder || null
+            };
         }
 
         return true;
@@ -493,7 +514,7 @@ async function loadDashboardData() {
 
         if (userRes.user) {
             state.currentUserData = userRes.user;
-            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'XII RPL 3';
+            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'Kelas';
             state.currentUser = userRes.user.id;
             state.role = userRes.user.role;
         }
@@ -568,18 +589,16 @@ async function loadDashboardData() {
 
 async function loadNotifications() {
     try {
-        const res = await apiFetch('notifications.php');
-        if (res.notifications) {
-            state.notifications = res.notifications.map(n => ({
-                id: n.id,
-                type: n.type,
-                title: n.title,
-                message: n.message,
-                isRead: n.is_read === 1,
-                link: n.link,
-                date: n.created_at
-            }));
-        }
+        const notifications = await apiFetchAll('notifications.php', 'notifications');
+        state.notifications = notifications.map(n => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            isRead: Number(n.is_read) === 1,
+            link: n.link,
+            date: n.created_at
+        }));
     } catch (err) {
         console.warn('Gagal memuat notifikasi', err);
     }
@@ -648,6 +667,14 @@ function updateNavUI() {
     if (verifMenu) {
         verifMenu.style.display = (state.role === 'bendahara') ? 'flex' : 'none';
     }
+    const kasMenu = document.querySelector('[data-page="kas-settings"]');
+    if (kasMenu) {
+        kasMenu.style.display = (state.role === 'bendahara') ? 'flex' : 'none';
+    }
+    const laporanMenu = document.querySelector('[data-page="laporan-masuk"]');
+    if (laporanMenu) {
+        laporanMenu.style.display = (state.role === 'bendahara') ? 'flex' : 'none';
+    }
     updateNotifBadge();
 }
 
@@ -710,7 +737,10 @@ async function renderPage() {
         'report-problem': renderReportProblemPage,
         'my-reports': renderMyReportsPage,
         'search': renderSearchPage,
-        'verifikasi': renderVerifikasiPage
+        'verifikasi': renderVerifikasiPage,
+        'kas-settings': renderKasSettingsPage,
+        'laporan-masuk': renderLaporanMasukPage,
+        'detail-laporan': renderDetailLaporanPage
     };
     const renderFn = pages[state.currentPage];
     if (renderFn) {
@@ -772,12 +802,11 @@ async function handleLogin() {
             state.currentUserData = data.user;
             state.historyStack = [];
 
-            // Pindah halaman dulu, biar toast dan dashboard muncul cepat
+            // Muat seluruh data aplikasi agar semua halaman terisi sejak login
+            await loadDataFromServer();
+
             navigateTo('home');
             showToast(`Selamat datang, ${data.user.name}! 👋`, 'success');
-
-            // Tidak perlu memuat semua data di sini karena dashboard akan
-            // memuat data yang dibutuhkan lewat loadDashboardData()
         } else {
             btn.disabled = false;
             btn.innerHTML = 'Masuk';
@@ -820,7 +849,7 @@ async function renderHomePage() {
     } else if (currentStatus === 'menunggu') {
         heroButton = `<button class="btn btn-primary" onclick="navigateTo('riwayat')">Lihat Status</button>`;
     } else if (currentStatus === 'ditolak') {
-        heroButton = `<button class="btn btn-primary" onclick="navigateTo('riwayat')">Upload Ulang</button>`;
+        heroButton = `<button class="btn btn-primary" onclick="navigateTo('upload-bukti')">Upload Ulang</button>`;
     } else {
         heroButton = `<button class="btn btn-primary" onclick="navigateTo('pembayaran')">Bayar Sekarang</button>`;
     }
@@ -845,7 +874,7 @@ async function renderHomePage() {
                 </div>
                 ${heroButton}
             </div>
-            <p style="font-size:12px;opacity:0.9;margin-top:8px;">Periode: ${currentPeriod.label}</p>
+            <p style="font-size:12px;opacity:0.9;margin-top:8px;">Periode: ${escapeHtml(currentPeriod.label)}</p>
             <p style="font-size:12px;opacity:0.9;">Jatuh tempo: ${formatDate(currentPeriod.dueDate)} (${diffDays>=0?diffDays+' hari lagi':'Terlambat '+Math.abs(diffDays)+' hari'})</p>
             <div class="progress-bar mt-16" style="background:rgba(255,255,255,0.2);">
                 <div class="progress-fill" style="width:${progress.rate}%;"></div>
@@ -854,7 +883,7 @@ async function renderHomePage() {
         </div>
 
         <div class="stat-grid mb-16">
-            <div class="stat-card"><div class="stat-value">${formatRupiah(state.periods.filter(p => p.is_paid).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0))}</div><div class="stat-label">Total Dibayar</div></div>
+            <div class="stat-card"><div class="stat-value">${formatRupiah(state.periods.filter(p => getPeriodStatusForUser(p.id, user.id) === 'lunas').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0))}</div><div class="stat-label">Total Dibayar</div></div>
             <div class="stat-card"><div class="stat-value" style="color:${totalUnpaid>0?'var(--danger)':'var(--success)'};">${formatRupiah(totalUnpaid)}</div><div class="stat-label">Tunggakan</div></div>
             <div class="stat-card"><div class="stat-value">${progress.lunasCount}</div><div class="stat-label">Periode Lunas</div></div>
             <div class="stat-card"><div class="stat-value">${progress.rate}%</div><div class="stat-label">Progress</div></div>
@@ -888,7 +917,7 @@ async function renderHomePage() {
             ${recentTx.length===0?'<p style="font-size:13px;color:var(--text-muted);">Belum ada transaksi.</p>':recentTx.map(tx=>`
                 <div class="list-item" onclick="navigateTo('detail-transaksi',{id:'${tx.id}'})">
                     <span>💳</span>
-                    <div class="item-info"><div class="item-title">${tx.periodLabel || tx.period_label || 'Periode'}</div><div class="item-subtitle">${formatShortDate(tx.date)} • ${tx.method.toUpperCase()}</div></div>
+                    <div class="item-info"><div class="item-title">${escapeHtml(tx.periodLabel || tx.period_label || 'Periode')}</div><div class="item-subtitle">${formatShortDate(tx.date)} • ${tx.method.toUpperCase()}</div></div>
                     <span class="badge ${getStatusBadgeClass(tx.status)}">${getStatusLabel(tx.status)}</span>
                 </div>`).join('')}
         </div>
@@ -914,7 +943,7 @@ function renderKasSayaPage() {
     const user = getCurrentUser();
     const progress = calculateProgress(user.id);
     const totalAmount = state.periods.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-    const totalPaid = state.periods.filter(p => p.is_paid).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const totalPaid = state.periods.filter(p => getPeriodStatusForUser(p.id, user.id) === 'lunas').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     const totalUnpaid = getUnpaidPeriods(user.id).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     return `
     ${renderHeader('Kas Saya', true)}
@@ -997,7 +1026,7 @@ async function renderPembayaranPage() {
                         const checked = state.selectedPeriods.some(id => String(id) === String(p.id));
                         return `<label class="list-item" style="cursor:pointer;">
                             <input type="checkbox" ${checked?'checked':''} onchange="togglePeriodSelection('${p.id}')" style="width:20px;height:20px;">
-                            <span>${p.label}</span>
+                            <span>${escapeHtml(p.label)}</span>
                             <span style="margin-left:auto;font-weight:700;">${formatRupiah(p.amount)}</span>
                         </label>`;
                     }).join('')
@@ -1009,7 +1038,7 @@ async function renderPembayaranPage() {
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
                 ${['cash','transfer','qris'].map(m=>`<button class="chip ${state.selectedMethod===m?'active':''}" onclick="state.selectedMethod='${m}';renderPage()" style="padding:12px;text-align:center;"><span style="font-size:20px;display:block;">${m==='cash'?'💵':m==='transfer'?'🏦':'📱'}</span>${m.toUpperCase()}</button>`).join('')}
             </div>
-            ${state.selectedMethod==='qris'?`<div class="text-center mt-8"><div style="width:120px;height:120px;background:var(--input-bg);border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:48px;">📱</div><p style="font-size:12px;color:var(--text-muted);">Scan untuk bayar ${formatRupiah(totalAmount)}</p></div>`:state.selectedMethod==='transfer'?`<p style="font-size:13px;margin-top:8px;">Transfer ke rekening: <strong>${state.cashSettings.bankName && state.cashSettings.accountNumber ? `${escapeHtml(state.cashSettings.bankName)} ${escapeHtml(state.cashSettings.accountNumber)} ${state.cashSettings.accountHolder ? 'a.n. ' + escapeHtml(state.cashSettings.accountHolder) : ''}` : 'rekening belum dikonfigurasi'}</strong></p>`:`<p style="font-size:13px;margin-top:8px;">Serahkan uang kepada bendahara.</p>`}
+            ${state.selectedMethod==='qris'?`<div class="text-center mt-8"><div style="padding:16px;background:var(--warning-bg);border-radius:8px;border:1px solid var(--warning);">📱<p style="font-size:13px;font-weight:600;margin-top:8px;">Kode QRIS belum tersedia di aplikasi</p><p style="font-size:12px;color:var(--text-secondary);">Minta kode QRIS kepada bendahara, atau lanjutkan lalu upload bukti pembayaran.</p></div><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Nominal: ${formatRupiah(totalAmount)}</p></div>`:state.selectedMethod==='transfer'?`<p style="font-size:13px;margin-top:8px;">Transfer ke rekening: <strong>${state.cashSettings.bankName && state.cashSettings.accountNumber ? `${escapeHtml(state.cashSettings.bankName)} ${escapeHtml(state.cashSettings.accountNumber)} ${state.cashSettings.accountHolder ? 'a.n. ' + escapeHtml(state.cashSettings.accountHolder) : ''}` : 'rekening belum dikonfigurasi'}</strong></p>`:`<p style="font-size:13px;margin-top:8px;">Serahkan uang kepada bendahara.</p>`}
         </div>
         <div class="card mb-16">
             <p>Total yang harus dibayar:</p>
@@ -1066,7 +1095,7 @@ async function handlePaymentSubmit() {
 
     showBottomSheet(`
         <h3>Konfirmasi</h3>
-        <p>Periode: ${periodLabels}</p>
+        <p>Periode: ${escapeHtml(periodLabels)}</p>
         <p>Total: <strong>${formatRupiah(totalAmount)}</strong></p>
         <p>Metode: ${state.selectedMethod.toUpperCase()}</p>
         <div class="flex gap-8 mt-16">
@@ -1134,16 +1163,16 @@ function renderUploadBuktiPage() {
             ${uploadableTxs.map(tx => `
                 <div class="list-item ${String(state.selectedUploadTxId) === String(tx.id) ? 'active' : ''}" onclick="state.selectedUploadTxId='${tx.id}';renderPage()">
                     <span>💳</span>
-                    <div class="item-info"><div class="item-title">${tx.periodLabel || tx.period_label || 'Periode'}</div><div class="item-subtitle">${tx.id} • ${formatRupiah(tx.amount)}</div></div>
+                    <div class="item-info"><div class="item-title">${escapeHtml(tx.periodLabel || tx.period_label || 'Periode')}</div><div class="item-subtitle">${tx.id} • ${formatRupiah(tx.amount)}</div></div>
                     ${String(state.selectedUploadTxId) === String(tx.id) ? '<span style="color:var(--primary);font-weight:700;">✓</span>' : ''}
                 </div>`).join('')}
         </div>` : ''}
         <div class="card mb-16">
-            <p>Periode: <strong>${selectedTx.periodLabel || selectedTx.period_label || 'Periode'}</strong></p>
+            <p>Periode: <strong>${escapeHtml(selectedTx.periodLabel || selectedTx.period_label || 'Periode')}</strong></p>
             <p>Nominal: <strong>${formatRupiah(selectedTx.amount)}</strong></p>
             <p>Metode: <strong>${selectedTx.method.toUpperCase()}</strong></p>
             <span class="badge ${selectedTx.status === 'ditolak' ? 'badge-danger' : 'badge-warning'}">${selectedTx.status === 'ditolak' ? 'Ditolak (Upload Ulang)' : 'Menunggu Verifikasi'}</span>
-            ${selectedTx.rejectionReason ? `<div style="margin-top:8px;padding:8px;background:var(--danger-bg);border-radius:6px;font-size:12px;color:var(--danger);">Alasan Penolakan: ${selectedTx.rejectionReason}</div>` : ''}
+            ${selectedTx.rejectionReason ? `<div style="margin-top:8px;padding:8px;background:var(--danger-bg);border-radius:6px;font-size:12px;color:var(--danger);">Alasan Penolakan: ${escapeHtml(selectedTx.rejectionReason)}</div>` : ''}
         </div>
         <div class="card">
             <div class="upload-zone" onclick="document.getElementById('fileInput').click()"><div class="upload-icon">📸</div><p>Klik untuk pilih file</p><p style="font-size:11px;color:var(--text-muted);">JPG, PNG, PDF (Maks 5MB)</p></div>
@@ -1204,7 +1233,8 @@ async function handleUploadProof() {
 // ==================== RIWAYAT ====================
 function renderRiwayatPage() {
     const user = getCurrentUser();
-    let tx = getUserTransactions(user.id);
+    // Bendahara melihat seluruh transaksi kelasnya; siswa hanya miliknya
+    let tx = state.role === 'bendahara' ? [...state.transactions] : getUserTransactions(user.id);
     if (state.filterStatus !== 'semua') tx = tx.filter(t => t.status === state.filterStatus);
     if (state.filterMethod !== 'semua') tx = tx.filter(t => t.method === state.filterMethod);
     if (state.filterPeriod !== 'semua') tx = tx.filter(t => t.periodId === state.filterPeriod);
@@ -1252,25 +1282,23 @@ function renderDetailTransaksiPage() {
             </div>
             ${tx.rejectionReason?`<div style="margin-top:12px;padding:8px;background:var(--danger-bg);border-radius:6px;"><p style="font-size:12px;color:var(--danger);">Alasan: ${escapeHtml(tx.rejectionReason)}</p></div>`:''}
         </div>
-        ${tx.proofDataUrl?`<div class="card mb-16"><div class="card-header"><span class="card-title">Bukti Pembayaran</span></div><img src="${tx.proofDataUrl}" style="max-width:100%;border-radius:8px;"><div class="flex gap-8 mt-8"><button class="btn btn-outline btn-sm flex-1" onclick="previewBukti('${tx.id}')">Lihat</button><button class="btn btn-outline btn-sm flex-1" onclick="downloadBukti('${tx.id}')">Download</button></div></div>`:tx.proof?`<div class="card mb-16"><div class="card-header"><span class="card-title">Bukti Pembayaran</span></div><div style="background:var(--input-bg);padding:12px;border-radius:8px;text-align:center;"><span style="font-size:48px;">📄</span><p>${escapeHtml(tx.proof.file_name)}</p></div><div class="flex gap-8 mt-8"><button class="btn btn-outline btn-sm flex-1" onclick="previewBukti('${tx.id}')">Lihat</button><button class="btn btn-outline btn-sm flex-1" onclick="downloadBukti('${tx.id}')">Download</button></div></div>`:'<div class="card mb-16"><p style="font-size:13px;color:var(--text-muted);text-align:center;">Belum ada bukti pembayaran.</p></div>'}
+        ${tx.proof?`<div class="card mb-16"><div class="card-header"><span class="card-title">Bukti Pembayaran</span></div><div style="background:var(--input-bg);padding:12px;border-radius:8px;text-align:center;"><span style="font-size:48px;">📄</span><p>${escapeHtml(tx.proof.file_name)}</p></div><div class="flex gap-8 mt-8"><button class="btn btn-outline btn-sm flex-1" onclick="previewBukti('${tx.id}')">Lihat</button><button class="btn btn-outline btn-sm flex-1" onclick="downloadBukti('${tx.id}')">Download</button></div></div>`:'<div class="card mb-16"><p style="font-size:13px;color:var(--text-muted);text-align:center;">Belum ada bukti pembayaran.</p></div>'}
         <div class="card">
             <div class="card-header"><span class="card-title">Timeline</span></div>
             <div class="timeline">
                 <div class="timeline-item success"><div class="timeline-date">${formatShortDate(tx.date)}</div><div class="timeline-content">Pembayaran dibuat</div></div>
                 ${tx.proof?`<div class="timeline-item success"><div class="timeline-date">${formatShortDate(tx.date)}</div><div class="timeline-content">Bukti dikirim</div></div>`:''}
-                ${tx.status==='berhasil'?`<div class="timeline-item success"><div class="timeline-date">${tx.verifiedAt?formatShortDate(tx.verifiedAt):'-'}</div><div class="timeline-content">Diverifikasi</div></div>`:tx.status==='menunggu'?`<div class="timeline-item warning"><div class="timeline-date">Sekarang</div><div class="timeline-content">Menunggu verifikasi</div></div>`:`<div class="timeline-item danger"><div class="timeline-date">${formatShortDate(tx.date)}</div><div class="timeline-content">Ditolak${tx.rejectionReason?`: ${tx.rejectionReason}`:''}</div></div>`}
+                ${tx.status==='berhasil'?`<div class="timeline-item success"><div class="timeline-date">${tx.verifiedAt?formatShortDate(tx.verifiedAt):'-'}</div><div class="timeline-content">Diverifikasi</div></div>`:tx.status==='menunggu'?`<div class="timeline-item warning"><div class="timeline-date">Sekarang</div><div class="timeline-content">Menunggu verifikasi</div></div>`:`<div class="timeline-item danger"><div class="timeline-date">${formatShortDate(tx.date)}</div><div class="timeline-content">Ditolak${tx.rejectionReason?`: ${escapeHtml(tx.rejectionReason)}`:''}</div></div>`}
             </div>
         </div>
-        ${tx.status==='ditolak'?`<button class="btn btn-primary btn-block mt-16" onclick="resubmitBukti('${tx.id}')">Upload Bukti Baru</button>`:''}
+        ${(tx.status==='ditolak' && String(tx.user_id)===String(getCurrentUser().id))?`<button class="btn btn-primary btn-block mt-16" onclick="resubmitBukti('${tx.id}')">Upload Bukti Baru</button>`:''}
     </div>`;
 }
 
 function previewBukti(txId) {
     const tx = state.transactions.find(t => t.id.toString() === txId.toString());
     if (tx) {
-        if (tx.proofDataUrl) {
-            showModal(`<div style="text-align:center;"><h3>Preview Bukti</h3><img src="${tx.proofDataUrl}" style="max-width:100%;max-height:300px;border-radius:8px;margin-top:8px;"></div>`);
-        } else if (tx.proof?.url) {
+        if (tx.proof?.url) {
             window.open(tx.proof.url, '_blank', 'noopener');
         } else {
             showToast('Bukti pembayaran tidak tersedia', 'warning');
@@ -1281,12 +1309,7 @@ function previewBukti(txId) {
 function downloadBukti(txId) {
     const tx = state.transactions.find(t => t.id.toString() === txId.toString());
     if (tx && tx.proof) {
-        if (tx.proofDataUrl) {
-            const a = document.createElement('a');
-            a.href = tx.proofDataUrl;
-            a.download = tx.proof;
-            a.click();
-        } else if (tx.proof?.url) {
+        if (tx.proof?.url) {
             const a = document.createElement('a');
             a.href = tx.proof.url + '&download=1';
             a.download = tx.proof.file_name;
@@ -1298,9 +1321,8 @@ function downloadBukti(txId) {
 }
 
 async function resubmitBukti(txId) {
-    // Simulasi: ubah status menjadi menunggu (tidak ada endpoint khusus)
-    // Sebaiknya gunakan endpoint verify_payment dengan action tertentu jika ada.
-    // Untuk sekarang, arahkan ke upload bukti dengan selectedUploadTxId.
+    // Flow nyata via backend: arahkan ke halaman upload; upload_proof.php
+    // yang mengubah status ditolak -> menunggu setelah bukti baru tersimpan.
     state.selectedUploadTxId = txId;
     showToast('Silakan upload bukti baru', 'info');
     navigateTo('upload-bukti');
@@ -1347,6 +1369,7 @@ function renderAnggotaPage() {
     return `
     ${renderHeader('Anggota Kelas', true)}
     <div class="container">
+        ${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>`:''}
         <div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
         <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
@@ -1359,22 +1382,30 @@ function renderDetailAnggotaPage() {
     const memberId = state.pageParams.id;
     const member = state.students.find(s => s.id == memberId);
     if (!member) return `${renderHeader('Detail Anggota', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Anggota tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Anggota', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?'✅':st==='menunggu'?'⏳':'⬜'}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
+    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button></div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?'✅':st==='menunggu'?'⏳':'⬜'}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
 }
 
 // ==================== TRANSPARANSI ====================
-function renderTransparansiPage() {
-    const totalIncome = state.transactions.filter(t => t.status === 'berhasil').reduce((sum, t) => sum + t.amount, 0);
-    const totalExpense = state.expenses.reduce((sum, e) => sum + e.amount, 0);
-    const balance = totalIncome - totalExpense;
-    const monthlyData = Array(12).fill(0);
-    state.transactions.filter(t => t.status === 'berhasil').forEach(t => { const d = new Date(t.date); monthlyData[d.getMonth()] = (monthlyData[d.getMonth()] || 0) + t.amount; });
-    const expenseMonthly = Array(12).fill(0);
-    state.expenses.forEach(e => { const d = new Date(e.date); expenseMonthly[d.getMonth()] = (expenseMonthly[d.getMonth()] || 0) + e.amount; });
+async function renderTransparansiPage() {
+    // Backend adalah sumber kebenaran untuk angka transparansi kas
+    let d;
+    try {
+        d = await apiFetch('transparansi.php?year=' + encodeURIComponent(state.transparansiYear));
+        if (!d || d.error) throw new Error((d && d.error) || 'Gagal memuat data');
+    } catch (err) {
+        console.warn('Gagal memuat transparansi', err);
+        return `${renderHeader('Transparansi Kas', true)}<div class="container"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Gagal memuat data transparansi</div><button class="btn btn-outline mt-16" onclick="renderPage()">Coba Lagi</button></div></div>`;
+    }
+    const totalIncome = parseFloat(d.total_income) || 0;
+    const totalExpense = parseFloat(d.total_expense) || 0;
+    const balance = parseFloat(d.balance) || 0;
+    const monthlyData = (d.monthly_income || []).map(v => parseFloat(v) || 0);
+    const expenseMonthly = (d.monthly_expense || []).map(v => parseFloat(v) || 0);
     const maxVal = Math.max(...monthlyData, ...expenseMonthly, 1);
     const selectedMonth = state.transparansiMonth;
     const monthIncome = monthlyData[selectedMonth] || 0;
     const monthExpense = expenseMonthly[selectedMonth] || 0;
+    const years = Array.isArray(d.years) && d.years.length ? d.years.map(Number) : [state.transparansiYear];
     return `
     ${renderHeader('Transparansi Kas', true)}
     <div class="container">
@@ -1383,12 +1414,15 @@ function renderTransparansiPage() {
             <div class="stat-card"><div class="stat-value" style="color:var(--success);">${formatRupiah(totalIncome)}</div><div class="stat-label">Total Pemasukan</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--danger);">${formatRupiah(totalExpense)}</div><div class="stat-label">Total Pengeluaran</div></div>
         </div>
-        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pemasukan</span></div><div class="chart-container"><div class="chart-bars">${monthlyData.map((v,i)=>{ const h=(v/maxVal)*140; return `<div class="chart-bar-group"><div class="chart-bar" style="height:${h}px;background:var(--success);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
-        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pengeluaran</span></div><div class="chart-container"><div class="chart-bars">${expenseMonthly.map((v,i)=>{ const h=(v/maxVal)*140; return `<div class="chart-bar-group"><div class="chart-bar" style="height:${h}px;background:var(--danger);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
+        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pemasukan ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${monthlyData.map((v,i)=>{ const h=(v/maxVal)*140; return `<div class="chart-bar-group"><div class="chart-bar" style="height:${h}px;background:var(--success);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
+        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pengeluaran ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${expenseMonthly.map((v,i)=>{ const h=(v/maxVal)*140; return `<div class="chart-bar-group"><div class="chart-bar" style="height:${h}px;background:var(--danger);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
         <div class="card">
             <div class="card-header"><span class="card-title">Ringkasan Bulanan</span></div>
+            <select class="form-input mb-8" onchange="state.transparansiYear=parseInt(this.value);renderPage()">
+                ${years.map(y=>`<option value="${y}" ${state.transparansiYear===y?'selected':''}>Tahun ${y}</option>`).join('')}
+            </select>
             <select class="form-input mb-8" onchange="state.transparansiMonth=parseInt(this.value);renderPage()">
-                ${months.map((m,i)=>`<option value="${i}" ${state.transparansiMonth===i?'selected':''}>${m} ${new Date().getFullYear()}</option>`).join('')}
+                ${months.map((m,i)=>`<option value="${i}" ${state.transparansiMonth===i?'selected':''}>${m} ${state.transparansiYear}</option>`).join('')}
             </select>
             <p>Pemasukan: <strong>${formatRupiah(monthIncome)}</strong></p>
             <p>Pengeluaran: <strong>${formatRupiah(monthExpense)}</strong></p>
@@ -1403,14 +1437,14 @@ function renderPengeluaranPage() {
     if (state.searchQuery) exps = exps.filter(e => e.name.toLowerCase().includes(state.searchQuery.toLowerCase()));
     const categories = [...new Set(state.expenses.map(e => e.category))];
     const catIcons = { kebersihan:'🧹', perlengkapan:'📦', kegiatan:'🎯', dekorasi:'🎨', sosial:'🤝', lainnya:'📋' };
-    return `${renderHeader('Pengeluaran Kelas', true)}<div class="container"><div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengeluaran" placeholder="Cari pengeluaran..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengeluaran'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${catIcons[c]||'📋'} ${escapeHtml(c)}</button>`).join('')}</div>${exps.map(e=>`<div class="card mb-8" onclick="navigateTo('detail-pengeluaran',{id:${e.id}})"><div class="flex items-center gap-12"><span style="font-size:28px;">${catIcons[e.category]||'📋'}</span><div class="flex-1"><p class="item-title">${escapeHtml(e.name)}</p><p class="item-subtitle">${escapeHtml(e.category)} • ${formatShortDate(e.date)}</p></div><span style="font-weight:800;color:var(--danger);">${formatRupiah(e.amount)}</span></div></div>`).join('')}</div>`;
+    return `${renderHeader('Pengeluaran Kelas', true)}<div class="container">${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddExpenseModal()">${getIcon('plus')} Tambah Pengeluaran</button>`:''}<div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengeluaran" placeholder="Cari pengeluaran..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengeluaran'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${catIcons[c]||'📋'} ${escapeHtml(c)}</button>`).join('')}</div>${exps.map(e=>`<div class="card mb-8" onclick="navigateTo('detail-pengeluaran',{id:${e.id}})"><div class="flex items-center gap-12"><span style="font-size:28px;">${catIcons[e.category]||'📋'}</span><div class="flex-1"><p class="item-title">${escapeHtml(e.name)}</p><p class="item-subtitle">${escapeHtml(e.category)} • ${formatShortDate(e.date)}</p></div><span style="font-weight:800;color:var(--danger);">${formatRupiah(e.amount)}</span></div></div>`).join('')}</div>`;
 }
 
 function renderDetailPengeluaranPage() {
     const expId = state.pageParams.id;
     const exp = state.expenses.find(e => e.id == expId);
     if (!exp) return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Pengeluaran tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="card text-center mb-16"><span style="font-size:48px;">📋</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p>📄 ${escapeHtml(exp.receiptFile)}</p></div>` : ''}</div>`;
+    return `${renderHeader('Detail Pengeluaran', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditExpenseModal(${exp.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeleteExpense(${exp.id})">Hapus</button></div>`:''}<div class="card text-center mb-16"><span style="font-size:48px;">📋</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p>📄 ${escapeHtml(exp.receiptFile)}</p><p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Nota tersimpan aman di server (tidak dapat diakses publik).</p></div>` : ''}</div>`;
 }
 
 // ==================== PENGUMUMAN ====================
@@ -1420,7 +1454,7 @@ function renderPengumumanPage() {
     if (state.filterStatus !== 'semua') anns = anns.filter(a => a.category === state.filterStatus);
     if (state.searchQuery) anns = anns.filter(a => a.title.toLowerCase().includes(state.searchQuery.toLowerCase()));
     const categories = [...new Set(state.announcements.map(a => a.category))];
-    return `${renderHeader('Pengumuman', true)}<div class="container"><div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengumuman" placeholder="Cari pengumuman..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengumuman'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${escapeHtml(c)}</button>`).join('')}</div>${anns.map(a=>`<div class="card mb-8" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:4px solid var(--danger);':''}"><div class="flex items-start gap-10"><span>${a.isImportant?'🔴':'📄'}</span><div class="flex-1"><p class="item-title">${escapeHtml(a.title)}</p><p class="item-subtitle">${escapeHtml(a.category)} • ${formatShortDate(a.date)}</p></div>${!a.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
+    return `${renderHeader('Pengumuman', true)}<div class="container">${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddAnnouncementModal()">${getIcon('plus')} Buat Pengumuman</button>`:''}<div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengumuman" placeholder="Cari pengumuman..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengumuman'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${escapeHtml(c)}</button>`).join('')}</div>${anns.map(a=>`<div class="card mb-8" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:4px solid var(--danger);':''}"><div class="flex items-start gap-10"><span>${a.isImportant?'🔴':'📄'}</span><div class="flex-1"><p class="item-title">${escapeHtml(a.title)}</p><p class="item-subtitle">${escapeHtml(a.category)} • ${formatShortDate(a.date)}</p></div>${!a.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
 }
 
 async function markAnnouncementRead(announcementId) {
@@ -1443,7 +1477,7 @@ function renderDetailPengumumanPage() {
     if (!ann.isRead) {
         markAnnouncementRead(annId);
     }
-    return `${renderHeader('Detail Pengumuman', true)}<div class="container"><div class="card mb-16"><span class="badge ${ann.isImportant?'badge-danger':'badge-info'}">${escapeHtml(ann.category)}</span><h2 style="font-size:20px;font-weight:800;margin:8px 0;">${escapeHtml(ann.title)}</h2><p style="font-size:12px;color:var(--text-secondary);">${formatDate(ann.date)}</p></div><div class="card"><p style="font-size:14px;line-height:1.6;">${escapeHtml(ann.content)}</p></div></div>`;
+    return `${renderHeader('Detail Pengumuman', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditAnnouncementModal(${ann.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeleteAnnouncement(${ann.id})">Hapus</button></div>`:''}<div class="card mb-16"><span class="badge ${ann.isImportant?'badge-danger':'badge-info'}">${escapeHtml(ann.category)}</span><h2 style="font-size:20px;font-weight:800;margin:8px 0;">${escapeHtml(ann.title)}</h2><p style="font-size:12px;color:var(--text-secondary);">${formatDate(ann.date)}</p></div><div class="card"><p style="font-size:14px;line-height:1.6;">${escapeHtml(ann.content)}</p></div></div>`;
 }
 
 // ==================== NOTIFIKASI ====================
@@ -1489,7 +1523,7 @@ async function renderNotifikasiPage() {
     const notifs = state.notifications;
     const unread = notifs.filter(n => !n.isRead).length;
     const typeIcons = { reminder:'⏰', pembayaran_berhasil:'✅', pembayaran_ditolak:'❌', bukti_diterima:'📤', pengumuman:'📢', pengeluaran:'💸', info:'ℹ️', pembayaran_menunggu:'⏳' };
-    return `${renderHeader('Notifikasi', true)}<div class="container"><div class="card-header"><span class="card-title">${unread} belum dibaca</span><button style="font-size:12px;color:var(--primary);" onclick="markAllNotificationsRead()">Tandai semua dibaca</button></div>${notifs.length === 0 ? '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-title">Tidak ada notifikasi</div></div>' : notifs.map(n=>`<div class="card mb-8" style="${!n.isRead?'background:var(--primary-light);':''}" onclick="handleNotificationClick(${n.id})"><div class="flex gap-10"><span>${typeIcons[n.type]||'ℹ️'}</span><div class="flex-1"><p class="item-title">${escapeHtml(n.title)}</p><p class="item-subtitle">${escapeHtml(n.message)}</p><p style="font-size:11px;color:var(--text-muted);">${formatShortDate(n.date)}</p></div>${!n.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
+    return `${renderHeader('Notifikasi', true)}<div class="container"><div class="card-header"><span class="card-title">${unread} belum dibaca</span><button style="font-size:12px;color:var(--primary);" onclick="markAllNotificationsRead()">Tandai semua dibaca</button></div>${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showBroadcastModal()">${getIcon('bell')} Kirim Notifikasi ke Kelas</button>`:''}${notifs.length === 0 ? '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-title">Tidak ada notifikasi</div></div>' : notifs.map(n=>`<div class="card mb-8" style="${!n.isRead?'background:var(--primary-light);':''}" onclick="handleNotificationClick(${n.id})"><div class="flex gap-10"><span>${typeIcons[n.type]||'ℹ️'}</span><div class="flex-1"><p class="item-title">${escapeHtml(n.title)}</p><p class="item-subtitle">${escapeHtml(n.message)}</p><p style="font-size:11px;color:var(--text-muted);">${formatShortDate(n.date)}</p></div>${!n.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
 }
 
 async function markAllNotificationsRead() {
@@ -1507,7 +1541,7 @@ async function markAllNotificationsRead() {
 
 // ==================== AKTIVITAS ====================
 function renderAktivitasPage() {
-    return `${renderHeader('Aktivitas Saya', true)}<div class="container"><div class="card"><div class="timeline">${state.activities.map(a=>`<div class="timeline-item success"><div class="timeline-date">${formatShortDate(a.time)}</div><div class="timeline-content">${a.icon || '📄'} ${a.description}</div></div>`).join('')}</div></div></div>`;
+    return `${renderHeader('Aktivitas Saya', true)}<div class="container"><div class="card"><div class="timeline">${state.activities.map(a=>`<div class="timeline-item success"><div class="timeline-date">${formatShortDate(a.time)}</div><div class="timeline-content">${a.icon || '📄'} ${escapeHtml(a.description)}</div></div>`).join('')}</div></div></div>`;
 }
 
 // ==================== KALENDER ====================
@@ -1542,10 +1576,34 @@ function showCalendarEvent(day, month, year) {
     const dateStr = new Date(year, month, day).toISOString().split('T')[0];
     const period = state.periods.find(p => p.startDate === dateStr || p.dueDate === dateStr);
     if (period) {
-        showBottomSheet(`<h3>${period.label}</h3><p>Status: ${getStatusLabel(getPeriodStatusForUser(period.id, getCurrentUser().id))}</p><button class="btn btn-primary" onclick="closeBottomSheet();navigateTo('kas-saya')">Lihat Kas Saya</button>`);
+        showBottomSheet(`<h3>${escapeHtml(period.label)}</h3><p>Status: ${getStatusLabel(getPeriodStatusForUser(period.id, getCurrentUser().id))}</p><button class="btn btn-primary" onclick="closeBottomSheet();navigateTo('kas-saya')">Lihat Kas Saya</button>`);
     } else {
         showToast('Tidak ada event', 'info');
     }
+}
+
+function showPeriodDetail(periodId) {
+    const period = getPeriodById(periodId);
+    if (!period) {
+        showToast('Periode tidak ditemukan', 'warning');
+        return;
+    }
+    const user = getCurrentUser();
+    const st = getPeriodStatusForUser(period.id, user.id);
+    const tx = getTransactionForPeriod(period.id, user.id);
+    showBottomSheet(`
+        <h3>${escapeHtml(period.label)}</h3>
+        <p>Nominal: <strong>${formatRupiah(period.amount)}</strong></p>
+        <p>Mulai: ${formatDate(period.startDate)}</p>
+        <p>Selesai: ${formatDate(period.endDate)}</p>
+        <p>Jatuh tempo: ${formatDate(period.dueDate)}</p>
+        <p>Status: <span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></p>
+        <div class="flex gap-8 mt-16">
+            ${(st==='belum'||st==='ditolak'||st==='terlambat')?`<button class="btn btn-primary flex-1" onclick="closeBottomSheet();navigateTo('pembayaran')">Bayar Sekarang</button>`:''}
+            ${state.role==='bendahara'?`<button class="btn btn-outline flex-1" onclick="closeBottomSheet();showEditPeriodModal('${period.id}')">Edit</button>`:''}
+            ${tx?`<button class="btn btn-outline flex-1" onclick="closeBottomSheet();navigateTo('detail-transaksi',{id:'${tx.id}'})">Lihat Transaksi</button>`:`<button class="btn btn-outline flex-1" onclick="closeBottomSheet()">Tutup</button>`}
+        </div>
+    `);
 }
 
 function showAddPeriodModal() {
@@ -1649,6 +1707,10 @@ async function renderStatistikPage() {
                 <p>Total Tunggakan: <strong style="color:var(--danger);">${formatRupiah(stats.total_arrears)}</strong></p>
                 <p>Siswa Menunggak: <strong>${stats.arrears_student_count} siswa</strong></p>
             </div>
+            <div class="flex gap-8 mt-16">
+                <button class="btn btn-outline flex-1" onclick="navigateTo('kas-settings')">${getIcon('settings')} Pengaturan Kas</button>
+                <button class="btn btn-outline flex-1" onclick="navigateTo('laporan-masuk')">Laporan Masuk</button>
+            </div>
         </div>`;
     }
 
@@ -1657,7 +1719,7 @@ async function renderStatistikPage() {
     const onTime = myTx.filter(t => t.status === 'berhasil').length;
     const rate = calculateProgress(user.id).rate;
     const targetTotal = state.periods.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-    return `${renderHeader('Statistik Pribadi', true)}<div class="container"><div class="stat-grid mb-16"><div class="stat-card"><div class="stat-value">${formatRupiah(totalPaid)}</div><div class="stat-label">Total</div></div><div class="stat-card"><div class="stat-value" style="color:var(--success);">${onTime}</div><div class="stat-label">Tepat Waktu</div></div><div class="stat-card"><div class="stat-value" style="color:var(--warning);">${myTx.filter(t=>t.status!=='berhasil').length}</div><div class="stat-label">Belum/Terlambat</div></div><div class="stat-card"><div class="stat-value">${rate}%</div><div class="stat-label">Rate</div></div></div><div class="card"><div class="card-header"><span class="card-title">Target</span></div><p>Target: <strong>${formatRupiah(targetTotal)}</strong></p><div class="progress-bar mt-8"><div class="progress-fill success" style="width:${rate}%;"></div></div></div></div>`;
+    return `${renderHeader('Statistik Pribadi', true)}<div class="container"><div class="stat-grid mb-16"><div class="stat-card"><div class="stat-value">${formatRupiah(totalPaid)}</div><div class="stat-label">Total</div></div><div class="stat-card"><div class="stat-value" style="color:var(--success);">${onTime}</div><div class="stat-label">Transaksi Berhasil</div></div><div class="stat-card"><div class="stat-value" style="color:var(--warning);">${myTx.filter(t=>t.status!=='berhasil').length}</div><div class="stat-label">Belum/Terlambat</div></div><div class="stat-card"><div class="stat-value">${rate}%</div><div class="stat-label">Rate</div></div></div><div class="card"><div class="card-header"><span class="card-title">Target</span></div><p>Target: <strong>${formatRupiah(targetTotal)}</strong></p><div class="progress-bar mt-8"><div class="progress-fill success" style="width:${rate}%;"></div></div></div></div>`;
 }
 
 // ==================== PROFIL ====================
@@ -1670,8 +1732,8 @@ function renderProfilPage() {
             <div class="text-center">
                 ${getAvatarHtml(user, 'avatar-lg')}
                 <div class="profile-info">
-                    <h2>${user.name || user.username}</h2>
-                    <p style="font-size:13px;color:var(--text-secondary);">${user.kelas || 'Kelas'} • ${user.absenNumber ? 'Absen '+user.absenNumber : user.role || 'Siswa'}</p>
+                    <h2>${escapeHtml(user.name || user.username)}</h2>
+                    <p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(user.kelas || 'Kelas')} • ${user.absenNumber ? 'Absen '+escapeHtml(user.absenNumber) : escapeHtml(user.role || 'Siswa')}</p>
                     <span class="badge">Akun Aktif</span>
                 </div>
             </div>
@@ -1679,10 +1741,10 @@ function renderProfilPage() {
         <div class="card mb-16">
             <div class="card-header"><span class="card-title">Informasi Siswa</span></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">
-                <div><span style="color:var(--text-muted);">NIS</span><p>${user.nis || '-'}</p></div>
-                <div><span style="color:var(--text-muted);">Username</span><p>${user.username || '-'}</p></div>
-                <div><span style="color:var(--text-muted);">Email</span><p>${user.email || '-'}</p></div>
-                <div><span style="color:var(--text-muted);">No. HP</span><p>${user.phone || '-'}</p></div>
+                <div><span style="color:var(--text-muted);">NIS</span><p>${escapeHtml(user.nis || '-')}</p></div>
+                <div><span style="color:var(--text-muted);">Username</span><p>${escapeHtml(user.username || '-')}</p></div>
+                <div><span style="color:var(--text-muted);">Email</span><p>${escapeHtml(user.email || '-')}</p></div>
+                <div><span style="color:var(--text-muted);">No. HP</span><p>${escapeHtml(user.phone || '-')}</p></div>
             </div>
         </div>
         <div class="card">
@@ -1740,6 +1802,7 @@ async function confirmLogout() {
         const data = await apiFetch('logout.php', 'POST');
         if (data.success) {
             // Server session sudah dihancurkan, baru hapus state frontend
+            csrfToken = null; // token milik sesi lama -> wajib ambil ulang untuk login berikutnya
             state.currentUser = null;
             state.role = null;
             state.currentUserData = null;
@@ -1763,7 +1826,7 @@ async function confirmLogout() {
 
 function renderEditProfilPage() {
     const user = getCurrentUser();
-    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">📸 Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${user.nis || ''}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${user.kelas || ''}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${user.email || ''}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${user.phone || ''}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
+    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">📸 Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${escapeHtml(user.nis || '')}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${escapeHtml(user.kelas || '')}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${escapeHtml(user.email || '')}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${escapeHtml(user.phone || '')}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
 }
 
 async function handleProfilePhotoUpload(event) {
@@ -1895,7 +1958,7 @@ function renderFaqPage() {
 }
 
 function renderBantuanPage() {
-    return `${renderHeader('Bantuan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Kontak Bendahara</span></div><p>📱 0812-3456-7890</p><button class="btn btn-outline btn-sm mt-8" onclick="showToast('Menghubungi...','info')">Hubungi</button></div><div class="card mb-16"><div class="card-header"><span class="card-title">Wali Kelas</span></div><p>📱 0812-9876-5432</p></div><div class="card"><button class="list-item" onclick="navigateTo('faq')"><span>❓</span> FAQ</button><button class="list-item" onclick="navigateTo('report-problem')"><span>📝</span> Laporkan Masalah</button></div></div>`;
+    return `${renderHeader('Bantuan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Kontak Bendahara</span></div><p>📱 0812-3456-7890</p><a class="btn btn-outline btn-sm mt-8" href="tel:081234567890">Hubungi</a></div><div class="card mb-16"><div class="card-header"><span class="card-title">Wali Kelas</span></div><p>📱 0812-9876-5432</p><a class="btn btn-outline btn-sm mt-8" href="tel:081298765432">Hubungi</a></div><div class="card"><button class="list-item" onclick="navigateTo('faq')"><span>❓</span> FAQ</button><button class="list-item" onclick="navigateTo('report-problem')"><span>📝</span> Laporkan Masalah</button></div></div>`;
 }
 
 function renderReportProblemPage() {
@@ -1935,7 +1998,7 @@ async function submitReport() {
 
 function renderMyReportsPage() {
     const userReports = state.userReports.filter(r => r.userId === getCurrentUser().id);
-    return `${renderHeader('Laporan Saya', true)}<div class="container">${userReports.map(r=>`<div class="card mb-8"><p class="item-title">${r.title}</p><p class="item-subtitle">${r.category} • ${formatShortDate(r.createdAt)}</p><span class="badge badge-info">${r.status}</span></div>`).join('') || '<div class="empty-state">Belum ada laporan.</div>'}</div>`;
+    return `${renderHeader('Laporan Saya', true)}<div class="container">${userReports.map(r=>`<div class="card mb-8"><p class="item-title">${escapeHtml(r.title)}</p><p class="item-subtitle">${escapeHtml(r.category)} • ${formatShortDate(r.createdAt)}</p><span class="badge badge-info">${escapeHtml(r.status)}</span>${r.response?`<div style="margin-top:8px;padding:8px;background:var(--input-bg);border-radius:6px;font-size:12px;"><strong>Respons:</strong> ${escapeHtml(r.response)}</div>`:''}${r.attachment?`<button class="btn btn-outline btn-sm mt-8" onclick="window.open('api/report_attachment.php?id=${r.id}','_blank','noopener')">📄 Lihat Lampiran</button>`:''}</div>`).join('') || '<div class="empty-state">Belum ada laporan.</div>'}</div>`;
 }
 
 function renderSearchPage() {
@@ -1943,11 +2006,11 @@ function renderSearchPage() {
     const results = [];
     if (q) {
         state.students.forEach(s => { if (s.name.toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Anggota', title: s.name, sub: `Absen ${s.absenNumber}`, page: 'detail-anggota', id: s.id }); });
-        getUserTransactions(getCurrentUser().id).forEach(t => { if (t.id.toString().includes(q) || (t.periodLabel||'').toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Transaksi', title: t.periodLabel || 'Periode', sub: t.id, page: 'detail-transaksi', id: t.id }); });
+        (state.role === 'bendahara' ? state.transactions : getUserTransactions(getCurrentUser().id)).forEach(t => { if (t.id.toString().includes(q) || (t.periodLabel||'').toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Transaksi', title: t.periodLabel || 'Periode', sub: t.id, page: 'detail-transaksi', id: t.id }); });
         state.announcements.forEach(a => { if (a.title.toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Pengumuman', title: a.title, sub: a.category, page: 'detail-pengumuman', id: a.id }); });
         state.expenses.forEach(e => { if (e.name.toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Pengeluaran', title: e.name, sub: e.category, page: 'detail-pengeluaran', id: e.id }); });
     }
-    return `${renderHeader('Pencarian', true)}<div class="container"><div class="search-input mb-16"><span>🔍</span><input type="text" id="searchInputGlobal" placeholder="Cari..." value="${state.searchQuery}" oninput="activeInputId='searchInputGlobal'; state.searchQuery=this.value; renderPage()"></div>${q===''?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Cari di KasKelas</div></div>':results.length===0?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Tidak ada hasil</div></div>':results.map(r=>`<div class="card mb-8" onclick="navigateTo('${r.page}',{id:'${r.id}'})"><div class="flex items-center gap-10"><span>${r.type==='Anggota'?'👤':r.type==='Transaksi'?'💳':r.type==='Pengumuman'?'📢':'💸'}</span><div class="flex-1"><p class="item-title">${r.title}</p><p class="item-subtitle">${r.type} • ${r.sub}</p></div><span>→</span></div></div>`).join('')}</div>`;
+    return `${renderHeader('Pencarian', true)}<div class="container"><div class="search-input mb-16"><span>🔍</span><input type="text" id="searchInputGlobal" placeholder="Cari..." value="${state.searchQuery}" oninput="activeInputId='searchInputGlobal'; state.searchQuery=this.value; renderPage()"></div>${q===''?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Cari di KasKelas</div></div>':results.length===0?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Tidak ada hasil</div></div>':results.map(r=>`<div class="card mb-8" onclick="navigateTo('${r.page}',{id:'${r.id}'})"><div class="flex items-center gap-10"><span>${r.type==='Anggota'?'👤':r.type==='Transaksi'?'💳':r.type==='Pengumuman'?'📢':'💸'}</span><div class="flex-1"><p class="item-title">${escapeHtml(r.title)}</p><p class="item-subtitle">${r.type} • ${escapeHtml(String(r.sub))}</p></div><span>→</span></div></div>`).join('')}</div>`;
 }
 
 // ==================== VERIFIKASI (BENDAHARA) ====================
@@ -1969,6 +2032,7 @@ async function renderVerifikasiPage() {
                         <p class="item-subtitle">${tx.id} • ${formatRupiah(tx.amount)} • ${tx.method.toUpperCase()}</p>
                     </div>
                     <div class="flex gap-8">
+                        ${tx.proof?`<button class="btn btn-sm btn-outline" onclick="previewBukti(${tx.id})">📄 Bukti</button>`:''}
                         <button class="btn btn-sm btn-primary" onclick="verifyPayment(${tx.id}, 'berhasil')">Setujui</button>
                         <button class="btn btn-sm btn-danger" onclick="showRejectPrompt(${tx.id})">Tolak</button>
                     </div>
@@ -2004,6 +2068,579 @@ async function verifyPayment(txId, action, reason = null) {
         }
     } catch (err) {
         showToast('Gagal terhubung ke server', 'error');
+    }
+}
+
+// ==================== B11: MANAGEMENT BENDAHARA ====================
+const EXPENSE_CATEGORIES = ['kebersihan','perlengkapan','kegiatan','dekorasi','sosial','lainnya'];
+const ANNOUNCEMENT_CATEGORIES = ['kas','kegiatan','informasi_kelas','penting'];
+const PERIOD_STATUSES = ['upcoming','active','closed'];
+const STUDENT_STATUSES = ['active','inactive','suspended'];
+
+function requireBendaharaUI() {
+    if (state.role !== 'bendahara') { showToast('Akses khusus bendahara', 'error'); return false; }
+    return true;
+}
+
+// ---------- B11-01 EXPENSE ----------
+function showAddExpenseModal() {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Tambah Pengeluaran</h3>
+        <div class="form-group"><label class="form-label">Nama *</label><input type="text" id="exName" class="form-input" placeholder="cth. Beli sapu"></div>
+        <div class="form-group"><label class="form-label">Kategori *</label><select id="exCat" class="form-input">${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Nominal (Rp) *</label><input type="number" id="exAmount" class="form-input" min="1" placeholder="0"></div>
+        <div class="form-group"><label class="form-label">Tanggal *</label><input type="date" id="exDate" class="form-input" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="form-group"><label class="form-label">Deskripsi</label><textarea id="exDesc" class="form-input" rows="2"></textarea></div>
+        <div class="form-group"><label class="form-label">Nota / Bukti (opsional, JPG/PNG/PDF maks 5MB)</label><input type="file" id="exReceipt" class="form-input" accept=".jpg,.jpeg,.png,.pdf"></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="exSaveBtn" onclick="submitAddExpense()">Simpan</button></div>
+    `);
+}
+
+async function submitAddExpense() {
+    const name = document.getElementById('exName').value.trim();
+    const category = document.getElementById('exCat').value;
+    const amount = parseFloat(document.getElementById('exAmount').value);
+    const expense_date = document.getElementById('exDate').value;
+    const description = document.getElementById('exDesc').value.trim();
+    const receipt = document.getElementById('exReceipt').files[0] || null;
+    const btn = document.getElementById('exSaveBtn');
+
+    if (!name) { showToast('Nama pengeluaran wajib diisi', 'warning'); return; }
+    if (!category || !EXPENSE_CATEGORIES.includes(category)) { showToast('Kategori tidak valid', 'warning'); return; }
+    if (!(amount > 0)) { showToast('Nominal harus lebih dari 0', 'warning'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expense_date)) { showToast('Tanggal tidak valid', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const fd = new FormData();
+        fd.append('name', name); fd.append('category', category);
+        fd.append('amount', amount); fd.append('expense_date', expense_date);
+        fd.append('description', description);
+        if (receipt) fd.append('receipt', receipt);
+        const res = await apiFetch('expenses.php', 'POST', fd, true);
+        if (res.success) {
+            closeModal(); showToast('Pengeluaran ditambahkan', 'success');
+            await loadDataFromServer(); renderPage();
+        } else {
+            showToast(res.error || 'Gagal menambah pengeluaran', 'error');
+            btn.disabled = false; btn.textContent = 'Simpan';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Simpan';
+    }
+}
+
+function showEditExpenseModal(id) {
+    if (!requireBendaharaUI()) return;
+    const e = state.expenses.find(x => x.id == id);
+    if (!e) { showToast('Pengeluaran tidak ditemukan', 'error'); return; }
+    showModal(`
+        <h3>Edit Pengeluaran</h3>
+        <div class="form-group"><label class="form-label">Nama *</label><input type="text" id="exName" class="form-input" value="${escapeHtml(e.name)}"></div>
+        <div class="form-group"><label class="form-label">Kategori *</label><select id="exCat" class="form-input">${EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${c===e.category?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Nominal (Rp) *</label><input type="number" id="exAmount" class="form-input" min="1" value="${parseFloat(e.amount) || 0}"></div>
+        <div class="form-group"><label class="form-label">Tanggal *</label><input type="date" id="exDate" class="form-input" value="${escapeHtml(e.date)}"></div>
+        <div class="form-group"><label class="form-label">Deskripsi</label><textarea id="exDesc" class="form-input" rows="2">${escapeHtml(e.desc || '')}</textarea></div>
+        <p style="font-size:11px;color:var(--text-muted);">Nota tidak diubah melalui form edit.</p>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="exEditBtn" onclick="submitEditExpense(${e.id})">Simpan</button></div>
+    `);
+}
+
+async function submitEditExpense(id) {
+    const name = document.getElementById('exName').value.trim();
+    const category = document.getElementById('exCat').value;
+    const amount = parseFloat(document.getElementById('exAmount').value);
+    const expense_date = document.getElementById('exDate').value;
+    const description = document.getElementById('exDesc').value.trim();
+    const btn = document.getElementById('exEditBtn');
+
+    if (!name) { showToast('Nama wajib diisi', 'warning'); return; }
+    if (!(amount > 0)) { showToast('Nominal harus lebih dari 0', 'warning'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expense_date)) { showToast('Tanggal tidak valid', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const res = await apiFetch('expenses.php', 'PUT', { id, name, category, amount, expense_date, description });
+        if (res.success) {
+            closeModal(); showToast('Pengeluaran diperbarui', 'success');
+            await loadDataFromServer(); renderPage();
+        } else {
+            showToast(res.error || 'Gagal memperbarui', 'error');
+            btn.disabled = false; btn.textContent = 'Simpan';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Simpan';
+    }
+}
+
+function confirmDeleteExpense(id) {
+    if (!requireBendaharaUI()) return;
+    const e = state.expenses.find(x => x.id == id);
+    if (!e) return;
+    showModal(`
+        <h3>Hapus Pengeluaran?</h3>
+        <p>"${escapeHtml(e.name)}" (${formatRupiah(e.amount)}) akan dihapus permanen.</p>
+        <div class="flex gap-8 mt-16">
+            <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
+            <button class="btn btn-danger flex-1" onclick="doDeleteExpense(${e.id})">Hapus</button>
+        </div>
+    `);
+}
+
+async function doDeleteExpense(id) {
+    try {
+        const res = await apiFetch('expenses.php', 'DELETE', { id });
+        if (res.success) {
+            closeModal(); showToast('Pengeluaran dihapus', 'success');
+            await loadDataFromServer(); goBack();
+        } else {
+            showToast(res.error || 'Gagal menghapus', 'error');
+            closeModal();
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        closeModal();
+    }
+}
+
+// ---------- B11-02 ANNOUNCEMENT ----------
+function showAddAnnouncementModal() {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Buat Pengumuman</h3>
+        <div class="form-group"><label class="form-label">Judul *</label><input type="text" id="annTitle" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Isi *</label><textarea id="annContent" class="form-input" rows="4"></textarea></div>
+        <div class="form-group"><label class="form-label">Kategori</label><select id="annCat" class="form-input">${ANNOUNCEMENT_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Prioritas</label><select id="annPri" class="form-input"><option value="normal">normal</option><option value="important">important</option></select></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="annSaveBtn" onclick="submitAddAnnouncement()">Terbitkan</button></div>
+    `);
+}
+
+async function submitAnnouncementPayload(method, payload, btnId, okMsg) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const res = await apiFetch('announcements.php', method, payload);
+        if (res.success) {
+            closeModal(); showToast(okMsg, 'success');
+            await loadDataFromServer(); renderPage();
+        } else {
+            showToast(res.error || 'Gagal menyimpan pengumuman', 'error');
+            btn.disabled = false; btn.textContent = 'Terbitkan';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Terbitkan';
+    }
+}
+
+function submitAddAnnouncement() {
+    const title = document.getElementById('annTitle').value.trim();
+    const content = document.getElementById('annContent').value.trim();
+    const category = document.getElementById('annCat').value;
+    const priority = document.getElementById('annPri').value;
+    if (!title || !content) { showToast('Judul dan isi wajib diisi', 'warning'); return; }
+    submitAnnouncementPayload('POST', { title, content, category, priority }, 'annSaveBtn', 'Pengumuman diterbitkan');
+}
+
+function showEditAnnouncementModal(id) {
+    if (!requireBendaharaUI()) return;
+    const a = state.announcements.find(x => x.id == id);
+    if (!a) { showToast('Pengumuman tidak ditemukan', 'error'); return; }
+    const catOk = ANNOUNCEMENT_CATEGORIES.includes(a.category) ? a.category : 'informasi_kelas';
+    showModal(`
+        <h3>Edit Pengumuman</h3>
+        <div class="form-group"><label class="form-label">Judul *</label><input type="text" id="annTitle" class="form-input" value="${escapeHtml(a.title)}"></div>
+        <div class="form-group"><label class="form-label">Isi *</label><textarea id="annContent" class="form-input" rows="4">${escapeHtml(a.content)}</textarea></div>
+        <div class="form-group"><label class="form-label">Kategori</label><select id="annCat" class="form-input">${ANNOUNCEMENT_CATEGORIES.map(c=>`<option value="${c}" ${c===catOk?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label">Prioritas</label><select id="annPri" class="form-input"><option value="normal" ${!a.isImportant?'selected':''}>normal</option><option value="important" ${a.isImportant?'selected':''}>important</option></select></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="annEditBtn" onclick="submitEditAnnouncement(${a.id})">Simpan</button></div>
+    `);
+}
+
+function submitEditAnnouncement(id) {
+    const title = document.getElementById('annTitle').value.trim();
+    const content = document.getElementById('annContent').value.trim();
+    const category = document.getElementById('annCat').value;
+    const priority = document.getElementById('annPri').value;
+    if (!title || !content) { showToast('Judul dan isi wajib diisi', 'warning'); return; }
+    submitAnnouncementPayload('PUT', { id, title, content, category, priority }, 'annEditBtn', 'Pengumuman diperbarui');
+}
+
+function confirmDeleteAnnouncement(id) {
+    if (!requireBendaharaUI()) return;
+    const a = state.announcements.find(x => x.id == id);
+    if (!a) return;
+    showModal(`
+        <h3>Hapus Pengumuman?</h3>
+        <p>"${escapeHtml(a.title)}" akan dihapus permanen.</p>
+        <div class="flex gap-8 mt-16">
+            <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
+            <button class="btn btn-danger flex-1" onclick="doDeleteAnnouncement(${a.id})">Hapus</button>
+        </div>
+    `);
+}
+
+async function doDeleteAnnouncement(id) {
+    try {
+        const res = await apiFetch('announcements.php', 'DELETE', { id });
+        if (res.success) {
+            closeModal(); showToast('Pengumuman dihapus', 'success');
+            await loadDataFromServer(); goBack();
+        } else {
+            showToast(res.error || 'Gagal menghapus', 'error');
+            closeModal();
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        closeModal();
+    }
+}
+
+// ---------- B11-03 PERIOD EDIT ----------
+function showEditPeriodModal(periodId) {
+    if (!requireBendaharaUI()) return;
+    const p = getPeriodById(periodId);
+    if (!p) { showToast('Periode tidak ditemukan', 'error'); return; }
+    showModal(`
+        <h3>Edit Periode Kas</h3>
+        <div class="form-group"><label class="form-label">Nama Periode *</label><input type="text" id="pdName" class="form-input" value="${escapeHtml(p.label)}"></div>
+        <div class="form-group"><label class="form-label">Tanggal Mulai *</label><input type="date" id="pdStart" class="form-input" value="${escapeHtml(p.startDate)}"></div>
+        <div class="form-group"><label class="form-label">Tanggal Selesai *</label><input type="date" id="pdEnd" class="form-input" value="${escapeHtml(p.endDate)}"></div>
+        <div class="form-group"><label class="form-label">Jatuh Tempo *</label><input type="date" id="pdDue" class="form-input" value="${escapeHtml(p.dueDate)}"></div>
+        <div class="form-group"><label class="form-label">Nominal (Rp) *</label><input type="number" id="pdAmount" class="form-input" min="1" value="${parseFloat(p.amount) || 0}"></div>
+        <div class="form-group"><label class="form-label">Status</label><select id="pdStatus" class="form-input">${PERIOD_STATUSES.map(s=>`<option value="${s}" ${s===p.status?'selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="pdEditBtn" onclick="submitEditPeriod(${p.id})">Simpan</button></div>
+    `);
+}
+
+async function submitEditPeriod(id) {
+    const name = document.getElementById('pdName').value.trim();
+    const start_date = document.getElementById('pdStart').value;
+    const end_date = document.getElementById('pdEnd').value;
+    const due_date = document.getElementById('pdDue').value;
+    const amount = parseFloat(document.getElementById('pdAmount').value);
+    const status = document.getElementById('pdStatus').value;
+    const btn = document.getElementById('pdEditBtn');
+
+    if (!name) { showToast('Nama periode wajib diisi', 'warning'); return; }
+    if (!(amount > 0)) { showToast('Nominal harus lebih dari 0', 'warning'); return; }
+    if (![start_date, end_date, due_date].every(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) { showToast('Tanggal tidak valid', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const res = await apiFetch('periods.php', 'PUT', { id, name, start_date, end_date, due_date, amount, status });
+        if (res.success) {
+            closeModal(); closeBottomSheet(); showToast('Periode diperbarui', 'success');
+            await loadDataFromServer(); renderPage();
+        } else {
+            showToast(res.error || 'Gagal memperbarui periode', 'error');
+            btn.disabled = false; btn.textContent = 'Simpan';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Simpan';
+    }
+}
+
+// ---------- B11-04 CASH SETTINGS ----------
+async function renderKasSettingsPage() {
+    if (state.role !== 'bendahara') {
+        return `<div class="container"><div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Akses khusus bendahara</div></div></div>`;
+    }
+    let cs = null;
+    try {
+        const res = await apiFetch('cash_settings.php');
+        cs = res && !res.error ? res.cash_settings : null;
+    } catch (e) { /* ditangani di bawah */ }
+    if (cs === null) {
+        return `${renderHeader('Pengaturan Kas', true)}<div class="container"><div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Gagal memuat pengaturan kas</div><button class="btn btn-outline mt-16" onclick="renderPage()">Coba Lagi</button></div></div>`;
+    }
+    const freq = cs.frequency || 'monthly';
+    return `
+    ${renderHeader('Pengaturan Kas', true)}
+    <div class="container">
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Frekuensi & Nominal Default</span></div>
+            <div class="form-group"><label class="form-label">Frekuensi</label><select id="csFreq" class="form-input"><option value="weekly" ${freq==='weekly'?'selected':''}>Mingguan</option><option value="monthly" ${freq==='monthly'?'selected':''}>Bulanan</option></select></div>
+            <div class="form-group"><label class="form-label">Nominal Default (Rp)</label><input type="number" id="csAmount" class="form-input" min="0" value="${parseFloat(cs.default_amount) || 0}"></div>
+            <div class="form-group"><label class="form-label">Batas Hari Pembayaran</label><input type="number" id="csDeadline" class="form-input" min="0" value="${parseInt(cs.payment_deadline_days) || 0}"></div>
+        </div>
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Rekening Transfer</span></div>
+            <div class="form-group"><label class="form-label">Nama Bank</label><input type="text" id="csBank" class="form-input" value="${escapeHtml(cs.bank_name || '')}"></div>
+            <div class="form-group"><label class="form-label">Nomor Rekening</label><input type="text" id="csAccount" class="form-input" value="${escapeHtml(cs.account_number || '')}"></div>
+            <div class="form-group"><label class="form-label">Atas Nama</label><input type="text" id="csHolder" class="form-input" value="${escapeHtml(cs.account_holder || '')}"></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="csSaveBtn" onclick="saveKasSettings()">Simpan Pengaturan</button>
+    </div>`;
+}
+
+async function saveKasSettings() {
+    const frequency = document.getElementById('csFreq').value;
+    const default_amount = parseFloat(document.getElementById('csAmount').value);
+    const payment_deadline_days = parseInt(document.getElementById('csDeadline').value);
+    const bank_name = document.getElementById('csBank').value.trim() || null;
+    const account_number = document.getElementById('csAccount').value.trim() || null;
+    const account_holder = document.getElementById('csHolder').value.trim() || null;
+    const btn = document.getElementById('csSaveBtn');
+
+    if (!(default_amount >= 0) || !(payment_deadline_days >= 0)) { showToast('Nilai numerik tidak valid', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const res = await apiFetch('cash_settings.php', 'POST', { frequency, default_amount, payment_deadline_days, bank_name, account_number, account_holder });
+        if (res.success) {
+            showToast('Pengaturan kas disimpan', 'success');
+            await loadDataFromServer();   // reload dari API agar tampil nilai tersimpan
+            renderPage();
+        } else {
+            showToast(res.error || 'Gagal menyimpan pengaturan', 'error');
+            btn.disabled = false; btn.textContent = 'Simpan Pengaturan';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Simpan Pengaturan';
+    }
+}
+
+// ---------- B11-05 STUDENT MANAGEMENT ----------
+function showAddStudentModal() {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Tambah Siswa</h3>
+        <div class="form-group"><label class="form-label">Nama Lengkap *</label><input type="text" id="stName" class="form-input"></div>
+        <div class="form-group"><label class="form-label">NIS *</label><input type="text" id="stNis" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Username Akun *</label><input type="text" id="stUsername" class="form-input"></div>
+        <div class="form-group"><label class="form-label">No. Absen</label><input type="number" id="stAbsen" class="form-input" min="1"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="stEmail" class="form-input"></div>
+        <div class="form-group"><label class="form-label">No. HP</label><input type="text" id="stPhone" class="form-input"></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="stSaveBtn" onclick="submitAddStudent()">Tambah</button></div>
+    `);
+}
+
+async function submitAddStudent() {
+    const full_name = document.getElementById('stName').value.trim();
+    const nis = document.getElementById('stNis').value.trim();
+    const username = document.getElementById('stUsername').value.trim();
+    const attendance_number = parseInt(document.getElementById('stAbsen').value) || null;
+    const email = document.getElementById('stEmail').value.trim();
+    const phone = document.getElementById('stPhone').value.trim();
+    const btn = document.getElementById('stSaveBtn');
+
+    if (!full_name || !nis || !username) { showToast('Nama, NIS, dan username wajib diisi', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menambahkan...';
+    try {
+        const res = await apiFetch('students.php', 'POST', { full_name, nis, username, attendance_number, email, phone });
+        if (res.success) {
+            closeModal(); showToast(`Siswa "${full_name}" ditambahkan`, 'success');
+            await loadDataFromServer(); renderPage();
+        } else {
+            showToast(res.error || 'Gagal menambah siswa', 'error');
+            btn.disabled = false; btn.textContent = 'Tambah';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Tambah';
+    }
+}
+
+function showEditStudentModal(userId) {
+    if (!requireBendaharaUI()) return;
+    const s = state.students.find(x => x.id == userId);
+    if (!s) { showToast('Siswa tidak ditemukan', 'error'); return; }
+    const statusOk = STUDENT_STATUSES.includes(s.user_status) ? s.user_status : 'active';
+    showModal(`
+        <h3>Edit Siswa</h3>
+        <div class="form-group"><label class="form-label">Nama Lengkap *</label><input type="text" id="stNameE" class="form-input" value="${escapeHtml(s.name || '')}"></div>
+        <div class="form-group"><label class="form-label">No. Absen</label><input type="number" id="stAbsenE" class="form-input" min="1" value="${parseInt(s.absenNumber) || ''}"></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" id="stEmailE" class="form-input" value="${escapeHtml(s.email || '')}"></div>
+        <div class="form-group"><label class="form-label">No. HP</label><input type="text" id="stPhoneE" class="form-input" value="${escapeHtml(s.phone || '')}"></div>
+        <div class="form-group"><label class="form-label">Status Akun</label><select id="stStatusE" class="form-input">${STUDENT_STATUSES.map(st=>`<option value="${st}" ${st===statusOk?'selected':''}>${st}</option>`).join('')}</select></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="stEditBtn" onclick="submitEditStudent(${s.id})">Simpan</button></div>
+    `);
+}
+
+async function submitEditStudent(userId) {
+    const full_name = document.getElementById('stNameE').value.trim();
+    const attendance_number = parseInt(document.getElementById('stAbsenE').value) || null;
+    const email = document.getElementById('stEmailE').value.trim();
+    const phone = document.getElementById('stPhoneE').value.trim();
+    const status = document.getElementById('stStatusE').value;
+    const btn = document.getElementById('stEditBtn');
+
+    if (!full_name) { showToast('Nama wajib diisi', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const res = await apiFetch('students.php', 'PUT', { user_id: userId, full_name, attendance_number, email, phone, status });
+        if (res.success) {
+            closeModal(); showToast('Data siswa diperbarui', 'success');
+            await loadDataFromServer(); renderPage();
+        } else {
+            showToast(res.error || 'Gagal memperbarui siswa', 'error');
+            btn.disabled = false; btn.textContent = 'Simpan';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Simpan';
+    }
+}
+
+function confirmDeactivateStudent(userId) {
+    if (!requireBendaharaUI()) return;
+    const s = state.students.find(x => x.id == userId);
+    if (!s) return;
+    showModal(`
+        <h3>Nonaktifkan Siswa?</h3>
+        <p>Akun "${escapeHtml(s.name)}" dinonaktifkan. Riwayat pembayaran tetap tersimpan.</p>
+        <div class="flex gap-8 mt-16">
+            <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
+            <button class="btn btn-danger flex-1" onclick="doDeactivateStudent(${s.id})">Nonaktifkan</button>
+        </div>
+    `);
+}
+
+async function doDeactivateStudent(userId) {
+    try {
+        const res = await apiFetch('students.php', 'DELETE', { user_id: userId });
+        if (res.success) {
+            closeModal(); showToast('Siswa dinonaktifkan', 'success');
+            await loadDataFromServer(); goBack();
+        } else {
+            showToast(res.error || 'Gagal menonaktifkan siswa', 'error');
+            closeModal();
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        closeModal();
+    }
+}
+
+// ---------- B11-06 REPORT MANAGEMENT ----------
+async function renderLaporanMasukPage() {
+    if (state.role !== 'bendahara') {
+        return `<div class="container"><div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Akses khusus bendahara</div></div></div>`;
+    }
+    let reports = [];
+    try {
+        const res = await apiFetchAll('reports.php', 'reports');
+        reports = res;
+    } catch (e) {
+        return `${renderHeader('Laporan Masuk', true)}<div class="container"><div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Gagal memuat laporan</div><button class="btn btn-outline mt-16" onclick="renderPage()">Coba Lagi</button></div></div>`;
+    }
+    const badgeMap = { dikirim:'badge-warning', diproses:'badge-info', selesai:'badge-success' };
+    return `
+    ${renderHeader('Laporan Masuk', true)}
+    <div class="container">
+        ${reports.length === 0 ? '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Belum ada laporan masuk</div></div>' :
+        reports.map(r=>`
+        <div class="card mb-8" onclick="navigateTo('detail-laporan',{id:${r.id}})">
+            <div class="flex items-start gap-10">
+                <span>📝</span>
+                <div class="flex-1">
+                    <p class="item-title">${escapeHtml(r.title)}</p>
+                    <p class="item-subtitle">${escapeHtml(r.reporter_name || '')} • ${formatShortDate(r.created_at)}</p>
+                </div>
+                <span class="badge ${badgeMap[r.status] || 'badge-neutral'}">${escapeHtml(r.status)}</span>
+            </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function renderDetailLaporanPage() {
+    if (state.role !== 'bendahara') {
+        return `<div class="container"><div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Akses khusus bendahara</div></div></div>`;
+    }
+    const repId = state.pageParams.id;
+    let r = null;
+    try {
+        const all = await apiFetchAll('reports.php', 'reports');
+        r = all.find(x => x.id == repId);
+    } catch (e) { /* handled below */ }
+    if (!r) return `${renderHeader('Detail Laporan', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Laporan tidak ditemukan</div></div></div>`;
+    const badgeMap = { dikirim:'badge-warning', diproses:'badge-info', selesai:'badge-success' };
+    return `
+    ${renderHeader('Detail Laporan', true)}
+    <div class="container">
+        <div class="card mb-16">
+            <span class="badge ${badgeMap[r.status] || 'badge-neutral'}">${escapeHtml(r.status)}</span>
+            <h2 style="font-size:18px;font-weight:800;margin:8px 0;">${escapeHtml(r.title)}</h2>
+            <p style="font-size:12px;color:var(--text-secondary);">${escapeHtml(r.reporter_name || '')} • ${formatDate(r.created_at)}</p>
+        </div>
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Deskripsi</span></div>
+            <p style="font-size:14px;line-height:1.6;">${escapeHtml(r.description)}</p>
+            ${r.transaction_id ? `<p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Terkait transaksi #${escapeHtml(String(r.transaction_id))}</p>` : ''}
+            ${r.attachment ? `<button class="btn btn-outline btn-sm mt-8" onclick="window.open('api/report_attachment.php?id=${r.id}','_blank','noopener')">📄 Lihat Lampiran</button>` : ''}
+        </div>
+        <div class="card">
+            <div class="card-header"><span class="card-title">Respons Bendahara</span></div>
+            <div class="form-group"><label class="form-label">Status</label><select id="rpStatus" class="form-input">${['dikirim','diproses','selesai'].map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${s}</option>`).join('')}</select></div>
+            <div class="form-group"><label class="form-label">Respons untuk siswa</label><textarea id="rpResponse" class="form-input" rows="3" placeholder="Tulis respons...">${escapeHtml(r.response || '')}</textarea></div>
+            <button class="btn btn-primary btn-block" id="rpSaveBtn" onclick="submitLaporanResponse(${r.id})">Simpan Respons</button>
+        </div>
+    </div>`;
+}
+
+async function submitLaporanResponse(id) {
+    const status = document.getElementById('rpStatus').value;
+    const response = document.getElementById('rpResponse').value.trim();
+    const btn = document.getElementById('rpSaveBtn');
+    if (!['dikirim','diproses','selesai'].includes(status)) { showToast('Status tidak valid', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+        const res = await apiFetch('reports.php', 'PUT', { id, status, response });
+        if (res.success) {
+            showToast('Respons laporan tersimpan', 'success');
+            await loadDataFromServer();
+            renderPage(); // render ulang detail dengan data terbaru dari API
+        } else {
+            showToast(res.error || 'Gagal menyimpan respons', 'error');
+            btn.disabled = false; btn.textContent = 'Simpan Respons';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Simpan Respons';
+    }
+}
+
+// ---------- B11-07 NOTIFICATION BROADCAST ----------
+function showBroadcastModal() {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Kirim Notifikasi ke Kelas</h3>
+        <p style="font-size:12px;color:var(--text-secondary);">Notifikasi dikirim ke seluruh anggota kelas yang aktif.</p>
+        <div class="form-group"><label class="form-label">Judul *</label><input type="text" id="bcTitle" class="form-input"></div>
+        <div class="form-group"><label class="form-label">Pesan *</label><textarea id="bcMessage" class="form-input" rows="3"></textarea></div>
+        <div class="flex gap-8 mt-16"><button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button><button class="btn btn-primary flex-1" id="bcSendBtn" onclick="submitBroadcast()">Kirim</button></div>
+    `);
+}
+
+async function submitBroadcast() {
+    const title = document.getElementById('bcTitle').value.trim();
+    const message = document.getElementById('bcMessage').value.trim();
+    const btn = document.getElementById('bcSendBtn');
+    if (!title || !message) { showToast('Judul dan pesan wajib diisi', 'warning'); return; }
+
+    btn.disabled = true; btn.textContent = 'Mengirim...';
+    try {
+        const res = await apiFetch('notifications.php', 'POST', { action: 'broadcast', title, message });
+        if (res.success) {
+            closeModal(); showToast(`Notifikasi terkirim ke ${res.count} anggota`, 'success');
+            await loadNotifications(); updateNotifBadge();
+        } else {
+            showToast(res.error || 'Gagal mengirim notifikasi', 'error');
+            btn.disabled = false; btn.textContent = 'Kirim';
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        btn.disabled = false; btn.textContent = 'Kirim';
     }
 }
 

@@ -18,9 +18,11 @@ $classId = $user['class_id'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    // Hitung total periode untuk kelas ini sekali saja
-    $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM cash_periods WHERE class_id = ?");
-    $stmtTotal->execute([$classId]);
+    // Hitung total periode yang SUDAH BERJALAN saja (start_date <= hari ini),
+    // konsisten dengan bendahara_stats dan perhitungan frontend.
+    $todayStr = date('Y-m-d');
+    $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM cash_periods WHERE class_id = ? AND start_date <= ?");
+    $stmtTotal->execute([$classId, $todayStr]);
     $totalPeriods = (int)$stmtTotal->fetchColumn();
 
     // Ambil semua siswa dalam kelas yang sama
@@ -41,6 +43,12 @@ if ($method === 'GET') {
     $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($students as &$student) {
+        // Privasi: kontak pribadi hanya untuk bendahara (misal kebutuhan pengelolaan anggota)
+        if ($role !== 'bendahara') {
+            $student['email'] = null;
+            $student['phone'] = null;
+        }
+
         $lunas = (int)$student['lunas'];
         $menunggu = (int)$student['menunggu'];
 
@@ -214,14 +222,19 @@ if ($method === 'DELETE') {
         json_response(['error' => 'Forbidden: Tidak dapat menonaktifkan/menghapus akun non-siswa'], 403);
     }
 
-    // Nonaktifkan user secara aman daripada DELETE fisik yang merusak foreign key
-    $stmtDisable = $pdo->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
-    $stmtDisable->execute([$targetUserId]);
+    try {
+        // Nonaktifkan user secara aman daripada DELETE fisik yang merusak foreign key
+        $stmtDisable = $pdo->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
+        $stmtDisable->execute([$targetUserId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'disable_member', 'users', $targetUserId, "Menonaktifkan anggota siswa ID #{$targetUserId}");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'disable_member', 'users', $targetUserId, "Menonaktifkan anggota siswa ID #{$targetUserId}");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menonaktifkan anggota'], 500);
     }
-
-    json_response(['success' => true]);
 }
 ?>

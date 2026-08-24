@@ -7,7 +7,7 @@ require_login();
 $userId = $_SESSION['user_id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $stmt = $pdo->prepare("SELECT * FROM user_settings WHERE user_id = ?");
+    $stmt = $pdo->prepare("SELECT user_id, theme, language, payment_reminder, announcement_notif, sound_notif, email_notif, updated_at FROM user_settings WHERE user_id = ?");
     $stmt->execute([$userId]);
     $settings = $stmt->fetch(PDO::FETCH_ASSOC);
     json_response(['settings' => $settings]);
@@ -21,16 +21,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $announcementNotif = isset($data['announcement_notif']) ? (int)$data['announcement_notif'] : 1;
     $soundNotif = isset($data['sound_notif']) ? (int)$data['sound_notif'] : 1;
 
-    $stmt = $pdo->prepare("
-        INSERT INTO user_settings (user_id, theme, payment_reminder, announcement_notif, sound_notif)
-        VALUES (?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            theme = VALUES(theme),
-            payment_reminder = VALUES(payment_reminder),
-            announcement_notif = VALUES(announcement_notif),
-            sound_notif = VALUES(sound_notif)
-    ");
-    $stmt->execute([$userId, $theme, $paymentReminder, $announcementNotif, $soundNotif]);
-    json_response(['success' => true]);
+    $validThemes = ['light', 'dark', 'system'];
+    if (!in_array($theme, $validThemes, true)) {
+        json_response(['error' => 'Tema tidak valid'], 400);
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO user_settings (user_id, theme, payment_reminder, announcement_notif, sound_notif)
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                theme = VALUES(theme),
+                payment_reminder = VALUES(payment_reminder),
+                announcement_notif = VALUES(announcement_notif),
+                sound_notif = VALUES(sound_notif)
+        ");
+        $stmt->execute([$userId, $theme, $paymentReminder, $announcementNotif, $soundNotif]);
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menyimpan pengaturan'], 500);
+    }
 }
 ?>

@@ -39,6 +39,21 @@ if ($attempts['count'] >= 5) {
     json_response(['error' => 'Terlalu banyak percobaan login gagal. Silakan coba lagi dalam 5 menit.'], 429);
 }
 
+// Lapisan 2: rate limit persisten berbasis file (tidak bisa direset dengan hapus cookie)
+// 2a: per username+IP — cegah brute force satu akun
+$throttleKey = md5(strtolower($username) . '|' . $ipKey);
+$throttle = login_throttle_check($throttleKey);
+if ($throttle['blocked']) {
+    json_response(['error' => 'Terlalu banyak percobaan login gagal. Silakan coba lagi dalam beberapa menit.'], 429);
+}
+// 2b: per IP (global) — cegah password spraying ke banyak username dari satu IP.
+//     Batas longgar agar kelas berbagi Wi-Fi (NAT) tidak ikut terkena; tidak direset saat login sukses.
+$ipThrottleKey = md5('IP|' . $ipKey);
+$ipThrottle = login_throttle_check($ipThrottleKey, 30, 600);
+if ($ipThrottle['blocked']) {
+    json_response(['error' => 'Terlalu banyak percobaan login gagal dari jaringan ini. Silakan coba lagi nanti.'], 429);
+}
+
 // Query dengan JOIN untuk mendapatkan nama dan status
 $stmt = $pdo->prepare("
     SELECT u.id, u.username, u.password_hash, u.role, u.email, u.status,
@@ -62,7 +77,16 @@ if ($user && password_verify($password, $user['password_hash'])) {
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['role'] = $user['role'];
 
+    // Catat waktu login terakhir
+    try {
+        $stmtLastLogin = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+        $stmtLastLogin->execute([$user['id']]);
+    } catch (Exception $e) {
+        error_log('Gagal memperbarui last_login: ' . $e->getMessage());
+    }
+
     unset($_SESSION['login_attempts'][$ipKey]);
+    login_throttle_reset($throttleKey);
     json_response([
         'success' => true,
         'user' => [
@@ -76,6 +100,8 @@ if ($user && password_verify($password, $user['password_hash'])) {
 } else {
     $attempts['count']++;
     $_SESSION['login_attempts'][$ipKey] = $attempts;
+    login_throttle_fail($throttleKey);
+    login_throttle_fail($ipThrottleKey, 600);
     json_response(['error' => 'Username atau password salah'], 401);
 }
 ?>

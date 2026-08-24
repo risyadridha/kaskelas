@@ -51,18 +51,27 @@ if ($method === 'POST') {
         json_response(['error' => 'Frekuensi atau status tidak valid'], 400);
     }
 
-    $stmt = $pdo->prepare("
-        INSERT INTO cash_periods (class_id, name, frequency, start_date, end_date, due_date, amount, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([$classId, $name, $frequency, $startDate, $endDate, $dueDate, $amount, $status]);
-    $periodId = $pdo->lastInsertId();
-
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'create_period', 'cash_periods', $periodId, "Membuat periode kas baru '{$name}' sebesar {$amount}");
+    if (!valid_date($startDate) || !valid_date($endDate) || !valid_date($dueDate)) {
+        json_response(['error' => 'Format tanggal periode tidak valid'], 400);
     }
 
-    json_response(['success' => true, 'id' => $periodId]);
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO cash_periods (class_id, name, frequency, start_date, end_date, due_date, amount, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$classId, $name, $frequency, $startDate, $endDate, $dueDate, $amount, $status]);
+        $periodId = $pdo->lastInsertId();
+
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'create_period', 'cash_periods', $periodId, "Membuat periode kas baru '{$name}' sebesar {$amount}");
+        }
+
+        json_response(['success' => true, 'id' => $periodId]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menyimpan periode'], 500);
+    }
 }
 
 if ($method === 'PUT') {
@@ -82,6 +91,10 @@ if ($method === 'PUT') {
         json_response(['error' => 'Data periode tidak valid'], 400);
     }
 
+    if (!valid_date($startDate) || !valid_date($endDate) || !valid_date($dueDate)) {
+        json_response(['error' => 'Format tanggal periode tidak valid'], 400);
+    }
+
     // Verify ownership
     $stmtCheck = $pdo->prepare("SELECT id FROM cash_periods WHERE id = ? AND class_id = ?");
     $stmtCheck->execute([$periodId, $classId]);
@@ -89,18 +102,23 @@ if ($method === 'PUT') {
         json_response(['error' => 'Periode tidak ditemukan'], 404);
     }
 
-    $stmt = $pdo->prepare("
-        UPDATE cash_periods
-        SET name = ?, start_date = ?, end_date = ?, due_date = ?, amount = ?, status = ?
-        WHERE id = ? AND class_id = ?
-    ");
-    $stmt->execute([$name, $startDate, $endDate, $dueDate, $amount, $status, $periodId, $classId]);
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE cash_periods
+            SET name = ?, start_date = ?, end_date = ?, due_date = ?, amount = ?, status = ?
+            WHERE id = ? AND class_id = ?
+        ");
+        $stmt->execute([$name, $startDate, $endDate, $dueDate, $amount, $status, $periodId, $classId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'edit_period', 'cash_periods', $periodId, "Mengubah periode kas '{$name}'");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'edit_period', 'cash_periods', $periodId, "Mengubah periode kas '{$name}'");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal memperbarui periode'], 500);
     }
-
-    json_response(['success' => true]);
 }
 
 if ($method === 'DELETE') {
@@ -128,13 +146,18 @@ if ($method === 'DELETE') {
         json_response(['error' => 'Periode tidak dapat dihapus karena sudah memiliki riwayat transaksi'], 400);
     }
 
-    $stmt = $pdo->prepare("DELETE FROM cash_periods WHERE id = ? AND class_id = ?");
-    $stmt->execute([$periodId, $classId]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM cash_periods WHERE id = ? AND class_id = ?");
+        $stmt->execute([$periodId, $classId]);
 
-    if (function_exists('log_audit')) {
-        log_audit($pdo, $userId, 'delete_period', 'cash_periods', $periodId, "Menghapus periode kas '{$period['name']}'");
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'delete_period', 'cash_periods', $periodId, "Menghapus periode kas '{$period['name']}'");
+        }
+
+        json_response(['success' => true]);
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        json_response(['error' => 'Gagal menghapus periode'], 500);
     }
-
-    json_response(['success' => true]);
 }
 ?>
