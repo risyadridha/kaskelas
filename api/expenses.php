@@ -57,6 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($role !== 'bendahara') json_response(['error' => 'Forbidden'], 403);
 
     $name = $_POST['name'] ?? '';
+    $category = '';
+    $amount = 0;
+    $description = '';
+    $expenseDate = '';
+
     if (empty($name)) {
         $jsonInput = json_decode(file_get_contents('php://input'), true);
         if ($jsonInput) {

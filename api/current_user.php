@@ -8,7 +8,8 @@ require_login();
 $stmt = $pdo->prepare("
     SELECT u.id, u.class_id, c.name AS class_name, u.username, u.role, u.email, u.phone,
            COALESCE(s.full_name, u.username) AS name,
-           s.nis, s.attendance_number
+           s.nis, s.attendance_number,
+           u.profile_photo
     FROM users u
     LEFT JOIN classes c ON c.id = u.class_id
     LEFT JOIN students s ON s.user_id = u.id

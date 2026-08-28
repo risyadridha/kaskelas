@@ -8,6 +8,10 @@ $stmt = $pdo->prepare("SELECT class_id FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
+if (!$user) {
+    json_response(['error' => 'User tidak ditemukan'], 404);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmt = $pdo->prepare("SELECT frequency, default_amount, payment_deadline_days, bank_name, account_number, account_holder FROM cash_settings WHERE class_id = ?");
     $stmt->execute([$user['class_id']]);

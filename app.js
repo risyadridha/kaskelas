@@ -91,7 +91,25 @@ function formatRupiah(amount){ return 'Rp' + amount.toLocaleString('id-ID'); }
 function formatDate(dateStr){ if(!dateStr) return '-'; const d=new Date(dateStr); if(isNaN(d.getTime())) return dateStr; return d.getDate()+' '+months[d.getMonth()]+' '+d.getFullYear(); }
 function formatShortDate(dateStr){ if(!dateStr) return '-'; const d=new Date(dateStr); if(isNaN(d.getTime())) return dateStr; return d.getDate()+' '+shortMonths[d.getMonth()]; }
 function getInitials(name){ return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
-function getAvatarHtml(student, size=''){ return `<div class="avatar ${size}">${getInitials(student.name || student.username)}</div>`; }
+function getAvatarHtml(student, size=''){
+    const photo = student?.profile_photo;
+    const initials = getInitials(student.name || student.username);
+    if (photo) {
+        const escapedPhoto = escapeHtml(photo);
+        const escapedInitials = escapeHtml(initials);
+        const escapedSize = escapeHtml(size);
+        return `<img class="avatar ${size}" src="api/avatar.php?file=${escapedPhoto}" alt="" data-fallback-initials="${escapedInitials}" data-fallback-size="${escapedSize}" onerror="avatarFallback(this)">`;
+    }
+    return `<div class="avatar ${size}">${initials}</div>`;
+}
+
+function avatarFallback(imgEl){
+    imgEl.onerror = null;
+    const div = document.createElement('div');
+    div.className = `avatar ${imgEl.dataset.fallbackSize || ''}`;
+    div.textContent = imgEl.dataset.fallbackInitials || '';
+    imgEl.replaceWith(div);
+}
 function showToast(message, type='success'){ const container=document.getElementById('toastContainer'); const toast=document.createElement('div'); toast.className=`toast toast-${type}`; const icons={success:'i-checkc',error:'i-x',warning:'i-alert',info:'i-info'}; toast.innerHTML=`<svg class="ic"><use href="#${icons[type]||'i-info'}"/></svg><span>${escapeHtml(message)}</span>`; container.appendChild(toast); setTimeout(()=>{ toast.style.opacity='0'; toast.style.transform='translateY(-20px)'; toast.style.transition='all 0.3s ease'; setTimeout(()=>toast.remove(),300); },3000); }
 function showBottomSheet(content){ document.getElementById('bsOverlay').classList.add('open'); document.getElementById('bottomSheet').classList.add('open'); document.getElementById('bsContent').innerHTML=content; document.getElementById('bsOverlay').onclick=()=>closeBottomSheet(); }
 function closeBottomSheet(){ document.getElementById('bsOverlay').classList.remove('open'); document.getElementById('bottomSheet').classList.remove('open'); }
@@ -1452,7 +1470,7 @@ function renderDetailPengeluaranPage() {
     const expId = state.pageParams.id;
     const exp = state.expenses.find(e => e.id == expId);
     if (!exp) return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Pengeluaran tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Pengeluaran', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditExpenseModal(${exp.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeleteExpense(${exp.id})">Hapus</button></div>`:''}<div class="card text-center mb-16"><span style="font-size:44px;display:inline-flex;color:var(--violet)">${ic('i-receipt')}</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p style="display:flex;align-items:center;gap:7px">${ic('i-doc')} ${escapeHtml(exp.receiptFile)}</p><p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Nota tersimpan aman di server (tidak dapat diakses publik).</p></div>` : ''}</div>`;
+    return `${renderHeader('Detail Pengeluaran', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditExpenseModal(${exp.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeleteExpense(${exp.id})">Hapus</button></div>`:''}<div class="card text-center mb-16"><span style="font-size:44px;display:inline-flex;color:var(--violet)">${ic('i-receipt')}</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p style="display:flex;align-items:center;gap:7px">${ic('i-doc')} ${escapeHtml(exp.receiptFile)}</p><button class="btn btn-primary btn-sm mt-8" onclick="window.open('api/receipt.php?id=${exp.id}','_blank')">Lihat Nota</button></div>` : ''}</div>`;
 }
 
 // ==================== PENGUMUMAN ====================
@@ -2672,7 +2690,23 @@ async function initApp() {
         const prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
         toggleTheme(prefers ? 'dark' : 'light');
     }
-    state.currentPage = 'login';
+
+    try {
+        const userRes = await apiFetch('current_user.php');
+        if (userRes?.user) {
+            state.currentUserData = userRes.user;
+            state.currentUserData.kelas = userRes.user.class_name || userRes.user.kelas || 'Kelas';
+            state.currentUser = userRes.user.id;
+            state.role = userRes.user.role;
+            await loadDataFromServer();
+            state.currentPage = 'home';
+        } else {
+            state.currentPage = 'login';
+        }
+    } catch (err) {
+        state.currentPage = 'login';
+    }
+
     renderPage();
     updateNavUI();
     window.addEventListener('online', () => {
@@ -2694,7 +2728,7 @@ async function initApp() {
             updateNavUI();
         }
     });
-    history.replaceState({ page: 'login', params: {} }, '', '');
+    history.replaceState({ page: state.currentPage, params: {} }, '', '');
 }
 
 initApp();

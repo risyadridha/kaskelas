@@ -77,6 +77,17 @@ if ($user && password_verify($password, $user['password_hash'])) {
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['role'] = $user['role'];
 
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+    $lifetime = ($user['role'] === 'bendahara') ? (60 * 60 * 24) : (60 * 60 * 24 * 20);
+    setcookie(session_name(), session_id(), [
+        'expires' => time() + $lifetime,
+        'path' => '/',
+        'domain' => '',
+        'secure' => $isSecure,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+
     // Catat waktu login terakhir
     try {
         $stmtLastLogin = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");

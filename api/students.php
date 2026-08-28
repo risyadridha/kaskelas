@@ -96,6 +96,19 @@ if ($method === 'POST') {
         json_response(['error' => 'NIS sudah digunakan'], 400);
     }
 
+    // Cek attendance_number unik di kelas yang sama
+    if ($attendanceNumber !== null) {
+        $stmtCheckAbsen = $pdo->prepare("
+            SELECT s.id FROM students s
+            JOIN users u ON u.id = s.user_id
+            WHERE u.class_id = ? AND s.attendance_number = ?
+        ");
+        $stmtCheckAbsen->execute([$classId, $attendanceNumber]);
+        if ($stmtCheckAbsen->fetch()) {
+            json_response(['error' => 'Nomor absen sudah digunakan siswa lain di kelas ini'], 400);
+        }
+    }
+
     $pdo->beginTransaction();
     try {
         // Password default untuk siswa baru: siswa123

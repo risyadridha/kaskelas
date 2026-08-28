@@ -118,6 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
 
+    $category = '';
+    $title = '';
+    $description = '';
+    $transactionId = null;
+
     $category = $_POST['category'] ?? 'lainnya';
     $title = trim($_POST['title'] ?? '');
     $description = trim($_POST['description'] ?? '');
