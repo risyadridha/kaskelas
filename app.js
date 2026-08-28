@@ -1,3 +1,4 @@
+﻿
 // ==================== KONFIGURASI & DATA ====================
 const API_BASE_URL = window.KASKELAS_API_BASE_URL || 'api/';
 let csrfToken = null;
@@ -85,12 +86,13 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 }
+function ic(name){return `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${name}"/></svg>`;}
 function formatRupiah(amount){ return 'Rp' + amount.toLocaleString('id-ID'); }
 function formatDate(dateStr){ if(!dateStr) return '-'; const d=new Date(dateStr); if(isNaN(d.getTime())) return dateStr; return d.getDate()+' '+months[d.getMonth()]+' '+d.getFullYear(); }
 function formatShortDate(dateStr){ if(!dateStr) return '-'; const d=new Date(dateStr); if(isNaN(d.getTime())) return dateStr; return d.getDate()+' '+shortMonths[d.getMonth()]; }
 function getInitials(name){ return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
 function getAvatarHtml(student, size=''){ return `<div class="avatar ${size}">${getInitials(student.name || student.username)}</div>`; }
-function showToast(message, type='success'){ const container=document.getElementById('toastContainer'); const toast=document.createElement('div'); toast.className=`toast toast-${type}`; const icons={success:'✅',error:'❌',warning:'⚠️',info:'ℹ️'}; toast.innerHTML=`${icons[type]||'ℹ️'} ${escapeHtml(message)}`; container.appendChild(toast); setTimeout(()=>{ toast.style.opacity='0'; toast.style.transform='translateY(-20px)'; toast.style.transition='all 0.3s ease'; setTimeout(()=>toast.remove(),300); },3000); }
+function showToast(message, type='success'){ const container=document.getElementById('toastContainer'); const toast=document.createElement('div'); toast.className=`toast toast-${type}`; const icons={success:'i-checkc',error:'i-x',warning:'i-alert',info:'i-info'}; toast.innerHTML=`<svg class="ic"><use href="#${icons[type]||'i-info'}"/></svg><span>${escapeHtml(message)}</span>`; container.appendChild(toast); setTimeout(()=>{ toast.style.opacity='0'; toast.style.transform='translateY(-20px)'; toast.style.transition='all 0.3s ease'; setTimeout(()=>toast.remove(),300); },3000); }
 function showBottomSheet(content){ document.getElementById('bsOverlay').classList.add('open'); document.getElementById('bottomSheet').classList.add('open'); document.getElementById('bsContent').innerHTML=content; document.getElementById('bsOverlay').onclick=()=>closeBottomSheet(); }
 function closeBottomSheet(){ document.getElementById('bsOverlay').classList.remove('open'); document.getElementById('bottomSheet').classList.remove('open'); }
 function showModal(html){ document.getElementById('modalOverlay').classList.add('open'); document.getElementById('modalBox').innerHTML=html; document.getElementById('modalOverlay').onclick=(e)=>{ if(e.target===document.getElementById('modalOverlay')) closeModal(); }; }
@@ -392,12 +394,12 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (txRes?.transactions) {
-            state.transactions = txRes.transactions.map(t => normalizeTransaction(t));
+        if (Array.isArray(txRes)) {
+            state.transactions = txRes.map(t => normalizeTransaction(t));
         }
 
-        if (expRes?.expenses) {
-            state.expenses = expRes.expenses.map(e => ({
+        if (Array.isArray(expRes)) {
+            state.expenses = expRes.map(e => ({
                 id: e.id,
                 name: e.name,
                 category: e.category,
@@ -410,8 +412,8 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (annRes?.announcements) {
-            state.announcements = annRes.announcements.map(a => ({
+        if (Array.isArray(annRes)) {
+            state.announcements = annRes.map(a => ({
                 id: a.id,
                 title: a.title,
                 content: a.content,
@@ -422,8 +424,8 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (notifRes?.notifications) {
-            state.notifications = notifRes.notifications.map(n => ({
+        if (Array.isArray(notifRes)) {
+            state.notifications = notifRes.map(n => ({
                 id: n.id,
                 type: n.type,
                 title: n.title,
@@ -435,8 +437,8 @@ async function loadDataFromServer() {
             }));
         }
 
-        if (actRes?.activities) {
-            state.activities = actRes.activities.map(a => ({
+        if (Array.isArray(actRes)) {
+            state.activities = actRes.map(a => ({
                 id: a.id,
                 type: a.type,
                 description: a.description,
@@ -469,8 +471,8 @@ async function loadDataFromServer() {
             state.theme = settingsRes.settings.theme || 'light';
         }
 
-        if (reportsRes?.reports) {
-            state.userReports = reportsRes.reports.map(r => ({
+        if (Array.isArray(reportsRes)) {
+            state.userReports = reportsRes.map(r => ({
                 id: r.id,
                 userId: r.user_id,
                 category: r.category,
@@ -656,6 +658,7 @@ function goBack() {
 function updateNavUI() {
     const isAuthenticated = Boolean(state.currentUser) && state.currentPage !== 'login';
     document.getElementById('app').classList.toggle('is-authenticated', isAuthenticated);
+    document.getElementById('app').classList.toggle('as-bendahara', state.role === 'bendahara');
     const pageMap = { home:'home', 'kas-saya':'kas', 'riwayat':'riwayat', notifikasi:'notifikasi', profil:'profil', verifikasi:'verifikasi' };
     const activeNav = pageMap[state.currentPage];
     document.querySelectorAll('.bottom-nav .nav-item, .sidebar-nav .nav-item').forEach(item => {
@@ -744,7 +747,11 @@ async function renderPage() {
     };
     const renderFn = pages[state.currentPage];
     if (renderFn) {
+        content.innerHTML = '<div class="page-loading"><span class="spinner"></span><b>Memuat…</b></div>';
         content.innerHTML = await renderFn();
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        window.scrollTo(0, 0);
     } else {
         content.innerHTML = `<div class="container"><div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Halaman tidak ditemukan</div></div></div>`;
     }
@@ -774,9 +781,9 @@ function renderLoginPage() {
     <main class="login-page">
         <div class="login-panel">
             <div class="login-brand">
-                <div class="login-mark" aria-hidden="true">K</div>
-                <h1>KasKelas</h1>
-                <p>Manajemen kas kelas untuk siswa</p>
+                <img src="assets/logo.svg" alt="Smart Kas" class="login-logo">
+                <h1>Smart Kas</h1>
+                <p>Ayo Bayar Uang Kas</p>
             </div>
             <section class="card login-card" aria-labelledby="loginTitle" data-testid="login-form">
                 <h2 id="loginTitle">Masuk</h2>
@@ -916,7 +923,7 @@ async function renderHomePage() {
             </div>
             ${recentTx.length===0?'<p style="font-size:13px;color:var(--text-muted);">Belum ada transaksi.</p>':recentTx.map(tx=>`
                 <div class="list-item" onclick="navigateTo('detail-transaksi',{id:'${tx.id}'})">
-                    <span>💳</span>
+                    ${ic('i-card')}
                     <div class="item-info"><div class="item-title">${escapeHtml(tx.periodLabel || tx.period_label || 'Periode')}</div><div class="item-subtitle">${formatShortDate(tx.date)} • ${tx.method.toUpperCase()}</div></div>
                     <span class="badge ${getStatusBadgeClass(tx.status)}">${getStatusLabel(tx.status)}</span>
                 </div>`).join('')}
@@ -924,17 +931,17 @@ async function renderHomePage() {
 
         <div class="card">
             <div class="card-header">
-                <span class="card-title">📢 Pengumuman</span>
+                <span class="card-title">${ic('i-mega')} Pengumuman</span>
                 <button style="font-size:12px;color:var(--primary);" onclick="navigateTo('pengumuman')">Lihat Semua →</button>
             </div>
         ${announcements.length===0?'<p style="font-size:13px;color:var(--text-muted);">Tidak ada pengumuman baru.</p>':announcements.map(a=>`
                 <div class="list-item" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:3px solid var(--danger);':''}">
-                    <span>${a.isImportant?'🔴':'📄'}</span>
+                    <span>${ic('i-mega')}</span>
                     <div class="item-info"><div class="item-title">${escapeHtml(a.title)}</div><div class="item-subtitle">${formatShortDate(a.date)} • ${escapeHtml(a.category)}</div></div>
                 </div>`).join('')}
         </div>
 
-        ${unpaidCount>0?`<div class="card mt-16" style="background:var(--warning-bg);border:1px solid var(--warning);"><p style="font-size:13px;font-weight:600;color:var(--warning);">⚠️ Anda memiliki ${unpaidCount} periode tunggakan.</p><button class="btn btn-outline btn-sm mt-8" onclick="navigateTo('tunggakan')">Lihat Tunggakan</button></div>`:''}
+        ${unpaidCount>0?`<div class="card mt-16" style="background:var(--warning-bg);border:1px solid var(--warning);"><p style="font-size:13px;font-weight:600;color:var(--warning);">Anda memiliki ${unpaidCount} periode tunggakan.</p><button class="btn btn-outline btn-sm mt-8" onclick="navigateTo('tunggakan')">Lihat Tunggakan</button></div>`:''}
     </div>`;
 }
 
@@ -977,7 +984,7 @@ function renderKasSayaPage() {
                 }).map(p => {
                     const st = getPeriodStatusForUser(p.id, user.id);
                     return `<div class="list-item" onclick="showPeriodDetail('${p.id}')" style="border-bottom:1px solid var(--border);border-radius:0;">
-                        <span>${st==='lunas'?'✅':st==='menunggu'?'⏳':'⬜'}</span>
+                        <span>${st==='lunas'?ic('i-checkc'):st==='menunggu'?ic('i-clock'):ic('i-alert')}</span>
                         <div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div><div class="item-subtitle">${formatRupiah(p.amount)} • Deadline ${formatShortDate(p.dueDate)}</div></div>
                         <span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span>
                     </div>`;
@@ -1036,15 +1043,15 @@ async function renderPembayaranPage() {
         <div class="card mb-16">
             <div class="card-header"><span class="card-title">Metode Pembayaran</span></div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-                ${['cash','transfer','qris'].map(m=>`<button class="chip ${state.selectedMethod===m?'active':''}" onclick="state.selectedMethod='${m}';renderPage()" style="padding:12px;text-align:center;"><span style="font-size:20px;display:block;">${m==='cash'?'💵':m==='transfer'?'🏦':'📱'}</span>${m.toUpperCase()}</button>`).join('')}
+                ${['cash','transfer','qris'].map(m=>`<button class="chip ${state.selectedMethod===m?'active':''}" onclick="state.selectedMethod='${m}';renderPage()" style="padding:12px;text-align:center;"><span style="font-size:20px;display:block;">${m==='cash'?ic('i-cash'):m==='transfer'?ic('i-bank'):ic('i-qr')}</span>${m.toUpperCase()}</button>`).join('')}
             </div>
-            ${state.selectedMethod==='qris'?`<div class="text-center mt-8"><div style="padding:16px;background:var(--warning-bg);border-radius:8px;border:1px solid var(--warning);">📱<p style="font-size:13px;font-weight:600;margin-top:8px;">Kode QRIS belum tersedia di aplikasi</p><p style="font-size:12px;color:var(--text-secondary);">Minta kode QRIS kepada bendahara, atau lanjutkan lalu upload bukti pembayaran.</p></div><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Nominal: ${formatRupiah(totalAmount)}</p></div>`:state.selectedMethod==='transfer'?`<p style="font-size:13px;margin-top:8px;">Transfer ke rekening: <strong>${state.cashSettings.bankName && state.cashSettings.accountNumber ? `${escapeHtml(state.cashSettings.bankName)} ${escapeHtml(state.cashSettings.accountNumber)} ${state.cashSettings.accountHolder ? 'a.n. ' + escapeHtml(state.cashSettings.accountHolder) : ''}` : 'rekening belum dikonfigurasi'}</strong></p>`:`<p style="font-size:13px;margin-top:8px;">Serahkan uang kepada bendahara.</p>`}
+            ${state.selectedMethod==='qris'?`<div class="text-center mt-8"><div style="padding:16px;background:var(--warning-bg);border-radius:8px;border:1px solid var(--warning);">${ic('i-qr')}<p style="font-size:13px;font-weight:600;margin-top:8px;">Kode QRIS belum tersedia di aplikasi</p><p style="font-size:12px;color:var(--text-secondary);">Minta kode QRIS kepada bendahara, atau lanjutkan lalu upload bukti pembayaran.</p></div><p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Nominal: ${formatRupiah(totalAmount)}</p></div>`:state.selectedMethod==='transfer'?`<p style="font-size:13px;margin-top:8px;">Transfer ke rekening: <strong>${state.cashSettings.bankName && state.cashSettings.accountNumber ? `${escapeHtml(state.cashSettings.bankName)} ${escapeHtml(state.cashSettings.accountNumber)} ${state.cashSettings.accountHolder ? 'a.n. ' + escapeHtml(state.cashSettings.accountHolder) : ''}` : 'rekening belum dikonfigurasi'}</strong></p>`:`<p style="font-size:13px;margin-top:8px;">Serahkan uang kepada bendahara.</p>`}
         </div>
         <div class="card mb-16">
             <p>Total yang harus dibayar:</p>
             <p style="font-size:24px;font-weight:800;color:var(--primary);">${formatRupiah(totalAmount)}</p>
         </div>
-        <button class="btn btn-primary btn-block btn-lg" data-testid="payment-submit" onclick="handlePaymentSubmit()">💳 Bayar Sekarang</button>
+        <button class="btn btn-primary btn-block btn-lg" data-testid="payment-submit" onclick="handlePaymentSubmit()">${ic('i-card')} Bayar Sekarang</button>
     </div>`;
 }
 
@@ -1162,9 +1169,9 @@ function renderUploadBuktiPage() {
             <div class="card-header"><span class="card-title">Pilih Transaksi</span></div>
             ${uploadableTxs.map(tx => `
                 <div class="list-item ${String(state.selectedUploadTxId) === String(tx.id) ? 'active' : ''}" onclick="state.selectedUploadTxId='${tx.id}';renderPage()">
-                    <span>💳</span>
+                    ${ic('i-card')}
                     <div class="item-info"><div class="item-title">${escapeHtml(tx.periodLabel || tx.period_label || 'Periode')}</div><div class="item-subtitle">${tx.id} • ${formatRupiah(tx.amount)}</div></div>
-                    ${String(state.selectedUploadTxId) === String(tx.id) ? '<span style="color:var(--primary);font-weight:700;">✓</span>' : ''}
+                    ${String(state.selectedUploadTxId) === String(tx.id) ? '<span style="color:var(--primary);font-weight:700;">' + ic("i-check") + '</span>' : ''}
                 </div>`).join('')}
         </div>` : ''}
         <div class="card mb-16">
@@ -1175,11 +1182,11 @@ function renderUploadBuktiPage() {
             ${selectedTx.rejectionReason ? `<div style="margin-top:8px;padding:8px;background:var(--danger-bg);border-radius:6px;font-size:12px;color:var(--danger);">Alasan Penolakan: ${escapeHtml(selectedTx.rejectionReason)}</div>` : ''}
         </div>
         <div class="card">
-            <div class="upload-zone" onclick="document.getElementById('fileInput').click()"><div class="upload-icon">📸</div><p>Klik untuk pilih file</p><p style="font-size:11px;color:var(--text-muted);">JPG, PNG, PDF (Maks 5MB)</p></div>
+            <div class="upload-zone" onclick="document.getElementById('fileInput').click()"><div class="upload-icon">${ic('i-cam')}</div><p>Klik untuk pilih file</p><p style="font-size:11px;color:var(--text-muted);">JPG, PNG, PDF (Maks 5MB)</p></div>
             <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.pdf" style="display:none;" onchange="handleFileSelect(event)">
             <div id="filePreviewContainer"></div>
         </div>
-        <button class="btn btn-primary btn-block mt-16" id="btnUpload" onclick="handleUploadProof()" disabled>📤 Kirim Bukti</button>
+        <button class="btn btn-primary btn-block mt-16" id="btnUpload" onclick="handleUploadProof()" disabled>${ic('i-send')} Kirim Bukti</button>
     </div>`;
 }
 
@@ -1191,7 +1198,7 @@ function handleFileSelect(event) {
     state.uploadedFile = file;
     const preview = document.getElementById('filePreviewContainer');
     const isImage = file.type.startsWith('image/');
-    preview.innerHTML = `<div class="file-preview">${isImage?`<img src="${URL.createObjectURL(file)}">`:'📄'}<div class="flex-1"><p>${escapeHtml(file.name)}</p><p style="font-size:11px;color:var(--text-muted);">${(file.size/1024/1024).toFixed(2)} MB</p></div><button onclick="removeFile()">✕</button></div>`;
+    preview.innerHTML = `<div class="file-preview">${isImage?`<img src="${URL.createObjectURL(file)}">`:ic("i-doc")}<div class="flex-1"><p>${escapeHtml(file.name)}</p><p style="font-size:11px;color:var(--text-muted);">${(file.size/1024/1024).toFixed(2)} MB</p></div><button onclick="removeFile()">${ic('i-x')}</button></div>`;
     document.getElementById('btnUpload').disabled = false;
 }
 
@@ -1221,12 +1228,12 @@ async function handleUploadProof() {
         } else {
             showToast(data.error || 'Gagal upload', 'error');
             btn.disabled = false;
-            btn.innerHTML = '📤 Kirim Bukti';
+            btn.innerHTML = ic('i-send') + ' Kirim Bukti';
         }
     } catch (err) {
         showToast('Gagal terhubung ke server', 'error');
         btn.disabled = false;
-        btn.innerHTML = '📤 Kirim Bukti';
+        btn.innerHTML = ic('i-send') + ' Kirim Bukti';
     }
 }
 
@@ -1246,7 +1253,7 @@ function renderRiwayatPage() {
     return `
     ${renderHeader('Riwayat Transaksi', true)}
     <div class="container">
-        <div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputRiwayat" placeholder="Cari ID atau periode..." value="${state.searchQuery}" oninput="activeInputId='searchInputRiwayat'; state.searchQuery=this.value; renderPage()"></div>
+        <div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputRiwayat" placeholder="Cari ID atau periode..." value="${state.searchQuery}" oninput="activeInputId='searchInputRiwayat'; state.searchQuery=this.value; renderPage()"></div>
         <div class="filter-chips mb-8">
             ${['semua','berhasil','menunggu','ditolak'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}
         </div>
@@ -1257,7 +1264,7 @@ function renderRiwayatPage() {
             <button class="chip ${state.filterPeriod==='semua'?'active':''}" onclick="state.filterPeriod='semua';renderPage()">Semua Periode</button>
             ${state.periods.map(p=>`<button class="chip ${state.filterPeriod===p.id?'active':''}" onclick="state.filterPeriod='${p.id}';renderPage()">${p.label}</button>`).join('')}
         </div>
-        ${tx.length===0?'<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Belum ada transaksi</div></div>':tx.map(t=>`<div class="card mb-8" onclick="navigateTo('detail-transaksi',{id:'${t.id}'})"><div class="flex items-center gap-10"><span>💳</span><div class="flex-1"><p class="item-title">${escapeHtml(t.periodLabel || t.period_label || 'Periode')}</p><p class="item-subtitle">${escapeHtml(t.id)} • ${formatShortDate(t.date)}</p></div><div class="text-right"><p style="font-weight:800;">${formatRupiah(t.amount)}</p><span class="badge ${getStatusBadgeClass(t.status)}">${getStatusLabel(t.status)}</span></div></div></div>`).join('')}
+        ${tx.length===0?'<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Belum ada transaksi</div></div>':tx.map(t=>`<div class="card mb-8" onclick="navigateTo('detail-transaksi',{id:'${t.id}'})"><div class="flex items-center gap-10">${ic('i-card')}<div class="flex-1"><p class="item-title">${escapeHtml(t.periodLabel || t.period_label || 'Periode')}</p><p class="item-subtitle">${escapeHtml(t.id)} • ${formatShortDate(t.date)}</p></div><div class="text-right"><p style="font-weight:800;">${formatRupiah(t.amount)}</p><span class="badge ${getStatusBadgeClass(t.status)}">${getStatusLabel(t.status)}</span></div></div></div>`).join('')}
     </div>`;
 }
 
@@ -1282,7 +1289,7 @@ function renderDetailTransaksiPage() {
             </div>
             ${tx.rejectionReason?`<div style="margin-top:12px;padding:8px;background:var(--danger-bg);border-radius:6px;"><p style="font-size:12px;color:var(--danger);">Alasan: ${escapeHtml(tx.rejectionReason)}</p></div>`:''}
         </div>
-        ${tx.proof?`<div class="card mb-16"><div class="card-header"><span class="card-title">Bukti Pembayaran</span></div><div style="background:var(--input-bg);padding:12px;border-radius:8px;text-align:center;"><span style="font-size:48px;">📄</span><p>${escapeHtml(tx.proof.file_name)}</p></div><div class="flex gap-8 mt-8"><button class="btn btn-outline btn-sm flex-1" onclick="previewBukti('${tx.id}')">Lihat</button><button class="btn btn-outline btn-sm flex-1" onclick="downloadBukti('${tx.id}')">Download</button></div></div>`:'<div class="card mb-16"><p style="font-size:13px;color:var(--text-muted);text-align:center;">Belum ada bukti pembayaran.</p></div>'}
+        ${tx.proof?`<div class="card mb-16"><div class="card-header"><span class="card-title">Bukti Pembayaran</span></div><div style="background:var(--input-bg);padding:12px;border-radius:8px;text-align:center;"><span style="font-size:44px;display:inline-flex;color:var(--violet)">${ic('i-doc')}</span><p>${escapeHtml(tx.proof.file_name)}</p></div><div class="flex gap-8 mt-8"><button class="btn btn-outline btn-sm flex-1" onclick="previewBukti('${tx.id}')">Lihat</button><button class="btn btn-outline btn-sm flex-1" onclick="downloadBukti('${tx.id}')">Download</button></div></div>`:'<div class="card mb-16"><p style="font-size:13px;color:var(--text-muted);text-align:center;">Belum ada bukti pembayaran.</p></div>'}
         <div class="card">
             <div class="card-header"><span class="card-title">Timeline</span></div>
             <div class="timeline">
@@ -1348,7 +1355,7 @@ function renderTunggakanPage() {
                 const dueDate = new Date(p.dueDate);
                 const now = new Date();
                 const diff = Math.ceil((now - dueDate) / (1000*60*60*24));
-            return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>⚠️</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div><div class="item-subtitle">Deadline: ${formatShortDate(p.dueDate)} • ${diff>0?`Terlambat ${diff} hari`:'Jatuh tempo'}</div></div><span style="font-weight:700;color:var(--danger);">${formatRupiah(p.amount)}</span></div>`;
+            return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;">${ic('i-alert')}<div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div><div class="item-subtitle">Deadline: ${formatShortDate(p.dueDate)} • ${diff>0?`Terlambat ${diff} hari`:'Jatuh tempo'}</div></div><span style="font-weight:700;color:var(--danger);">${formatRupiah(p.amount)}</span></div>`;
             }).join('')}
         </div>
         <div class="flex gap-8"><button class="btn btn-primary flex-1" onclick="navigateTo('pembayaran')">Bayar Sekarang</button></div>`}
@@ -1364,13 +1371,13 @@ function renderAnggotaPage() {
     else if (state.sortBy === 'nama-asc') members.sort((a,b)=>a.name.localeCompare(b.name));
     else if (state.sortBy === 'nama-desc') members.sort((a,b)=>b.name.localeCompare(a.name));
     else if (state.sortBy === 'status') { const order={lunas:1,menunggu:2,belum:3}; members.sort((a,b)=>(order[a.status]||4)-(order[b.status]||4)); }
-    const statusMap={lunas:'🟢 Lunas',menunggu:'🟡 Menunggu',belum:'🔴 Belum bayar'};
+    const statusMap={lunas:'Lunas',menunggu:'Menunggu',belum:'Belum bayar'};
     const badgeMap={lunas:'badge-success',menunggu:'badge-warning',belum:'badge-danger'};
     return `
     ${renderHeader('Anggota Kelas', true)}
     <div class="container">
         ${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>`:''}
-        <div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
+        <div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
         <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
         ${members.map(m=>`<div class="card mb-8" onclick="navigateTo('detail-anggota',{id:${m.id}})"><div class="flex items-center gap-12">${getAvatarHtml(m,'avatar-sm')}<div class="flex-1"><p class="item-title">${escapeHtml(m.name)}</p><p class="item-subtitle">Absen ${escapeHtml(String(m.absenNumber).padStart(2,'0'))}</p></div><span class="badge ${badgeMap[m.status] || 'badge-neutral'}">${statusMap[m.status] || escapeHtml(m.status)}</span></div></div>`).join('')}
@@ -1382,7 +1389,7 @@ function renderDetailAnggotaPage() {
     const memberId = state.pageParams.id;
     const member = state.students.find(s => s.id == memberId);
     if (!member) return `${renderHeader('Detail Anggota', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Anggota tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button></div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?'✅':st==='menunggu'?'⏳':'⬜'}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
+    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button></div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?ic('i-checkc'):st==='menunggu'?ic('i-clock'):ic('i-alert')}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
 }
 
 // ==================== TRANSPARANSI ====================
@@ -1401,7 +1408,8 @@ async function renderTransparansiPage() {
     const balance = parseFloat(d.balance) || 0;
     const monthlyData = (d.monthly_income || []).map(v => parseFloat(v) || 0);
     const expenseMonthly = (d.monthly_expense || []).map(v => parseFloat(v) || 0);
-    const maxVal = Math.max(...monthlyData, ...expenseMonthly, 1);
+    const maxIn = Math.max(...monthlyData, 1);
+    const maxEx = Math.max(...expenseMonthly, 1);
     const selectedMonth = state.transparansiMonth;
     const monthIncome = monthlyData[selectedMonth] || 0;
     const monthExpense = expenseMonthly[selectedMonth] || 0;
@@ -1414,8 +1422,8 @@ async function renderTransparansiPage() {
             <div class="stat-card"><div class="stat-value" style="color:var(--success);">${formatRupiah(totalIncome)}</div><div class="stat-label">Total Pemasukan</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--danger);">${formatRupiah(totalExpense)}</div><div class="stat-label">Total Pengeluaran</div></div>
         </div>
-        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pemasukan ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${monthlyData.map((v,i)=>{ const h=(v/maxVal)*140; return `<div class="chart-bar-group"><div class="chart-bar" style="height:${h}px;background:var(--success);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
-        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pengeluaran ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${expenseMonthly.map((v,i)=>{ const h=(v/maxVal)*140; return `<div class="chart-bar-group"><div class="chart-bar" style="height:${h}px;background:var(--danger);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
+        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pemasukan ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${monthlyData.map((v,i)=>{ const h=Math.max((v/maxIn)*140, v>0?8:0); return `<div class="chart-bar-group" title="${formatRupiah(v)}">${v>0?`<b class="amount" style="font-size:8.5px;color:var(--mint)">${formatRupiah(v)}</b>`:""}<div class="chart-bar" style="height:${h}px;background:var(--mint);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
+        <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pengeluaran ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${expenseMonthly.map((v,i)=>{ const h=Math.max((v/maxEx)*140, v>0?8:0); return `<div class="chart-bar-group" title="${formatRupiah(v)}">${v>0?`<b class="amount" style="font-size:8.5px;color:var(--pink)">${formatRupiah(v)}</b>`:""}<div class="chart-bar" style="height:${h}px;background:var(--pink);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
         <div class="card">
             <div class="card-header"><span class="card-title">Ringkasan Bulanan</span></div>
             <select class="form-input mb-8" onchange="state.transparansiYear=parseInt(this.value);renderPage()">
@@ -1436,15 +1444,15 @@ function renderPengeluaranPage() {
     if (state.filterStatus !== 'semua') exps = exps.filter(e => e.category === state.filterStatus);
     if (state.searchQuery) exps = exps.filter(e => e.name.toLowerCase().includes(state.searchQuery.toLowerCase()));
     const categories = [...new Set(state.expenses.map(e => e.category))];
-    const catIcons = { kebersihan:'🧹', perlengkapan:'📦', kegiatan:'🎯', dekorasi:'🎨', sosial:'🤝', lainnya:'📋' };
-    return `${renderHeader('Pengeluaran Kelas', true)}<div class="container">${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddExpenseModal()">${getIcon('plus')} Tambah Pengeluaran</button>`:''}<div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengeluaran" placeholder="Cari pengeluaran..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengeluaran'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${catIcons[c]||'📋'} ${escapeHtml(c)}</button>`).join('')}</div>${exps.map(e=>`<div class="card mb-8" onclick="navigateTo('detail-pengeluaran',{id:${e.id}})"><div class="flex items-center gap-12"><span style="font-size:28px;">${catIcons[e.category]||'📋'}</span><div class="flex-1"><p class="item-title">${escapeHtml(e.name)}</p><p class="item-subtitle">${escapeHtml(e.category)} • ${formatShortDate(e.date)}</p></div><span style="font-weight:800;color:var(--danger);">${formatRupiah(e.amount)}</span></div></div>`).join('')}</div>`;
+    const catIcons = { kebersihan:'i-trash', perlengkapan:'i-doc', kegiatan:'i-checkc', dekorasi:'i-sun', sosial:'i-users', lainnya:'i-list' };
+    return `${renderHeader('Pengeluaran Kelas', true)}<div class="container">${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddExpenseModal()">${getIcon('plus')} Tambah Pengeluaran</button>`:''}<div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputPengeluaran" placeholder="Cari pengeluaran..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengeluaran'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${ic(catIcons[c]||'i-list')} ${escapeHtml(c)}</button>`).join('')}</div>${exps.map(e=>`<div class="card mb-8" onclick="navigateTo('detail-pengeluaran',{id:${e.id}})"><div class="flex items-center gap-12"><span style="font-size:28px;display:inline-flex;color:var(--violet)">${ic(catIcons[e.category]||'i-receipt')}</span><div class="flex-1"><p class="item-title">${escapeHtml(e.name)}</p><p class="item-subtitle">${escapeHtml(e.category)} • ${formatShortDate(e.date)}</p></div><span style="font-weight:800;color:var(--danger);">${formatRupiah(e.amount)}</span></div></div>`).join('')}</div>`;
 }
 
 function renderDetailPengeluaranPage() {
     const expId = state.pageParams.id;
     const exp = state.expenses.find(e => e.id == expId);
     if (!exp) return `${renderHeader('Detail Pengeluaran', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Pengeluaran tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Pengeluaran', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditExpenseModal(${exp.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeleteExpense(${exp.id})">Hapus</button></div>`:''}<div class="card text-center mb-16"><span style="font-size:48px;">📋</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p>📄 ${escapeHtml(exp.receiptFile)}</p><p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Nota tersimpan aman di server (tidak dapat diakses publik).</p></div>` : ''}</div>`;
+    return `${renderHeader('Detail Pengeluaran', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditExpenseModal(${exp.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeleteExpense(${exp.id})">Hapus</button></div>`:''}<div class="card text-center mb-16"><span style="font-size:44px;display:inline-flex;color:var(--violet)">${ic('i-receipt')}</span><h2>${escapeHtml(exp.name)}</h2><p style="font-size:24px;font-weight:800;color:var(--danger);">${formatRupiah(exp.amount)}</p></div><div class="card mb-16"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;"><div><span style="color:var(--text-muted);">Tanggal</span><p>${formatDate(exp.date)}</p></div><div><span style="color:var(--text-muted);">Kategori</span><p>${escapeHtml(exp.category)}</p></div></div></div><div class="card mb-16"><div class="card-header"><span class="card-title">Deskripsi</span></div><p>${escapeHtml(exp.desc) || '-'}</p></div>${exp.receiptFile ? `<div class="card"><div class="card-header"><span class="card-title">Nota / Bukti</span></div><p style="display:flex;align-items:center;gap:7px">${ic('i-doc')} ${escapeHtml(exp.receiptFile)}</p><p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Nota tersimpan aman di server (tidak dapat diakses publik).</p></div>` : ''}</div>`;
 }
 
 // ==================== PENGUMUMAN ====================
@@ -1454,7 +1462,7 @@ function renderPengumumanPage() {
     if (state.filterStatus !== 'semua') anns = anns.filter(a => a.category === state.filterStatus);
     if (state.searchQuery) anns = anns.filter(a => a.title.toLowerCase().includes(state.searchQuery.toLowerCase()));
     const categories = [...new Set(state.announcements.map(a => a.category))];
-    return `${renderHeader('Pengumuman', true)}<div class="container">${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddAnnouncementModal()">${getIcon('plus')} Buat Pengumuman</button>`:''}<div class="search-input mb-8"><span>🔍</span><input type="text" id="searchInputPengumuman" placeholder="Cari pengumuman..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengumuman'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${escapeHtml(c)}</button>`).join('')}</div>${anns.map(a=>`<div class="card mb-8" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:4px solid var(--danger);':''}"><div class="flex items-start gap-10"><span>${a.isImportant?'🔴':'📄'}</span><div class="flex-1"><p class="item-title">${escapeHtml(a.title)}</p><p class="item-subtitle">${escapeHtml(a.category)} • ${formatShortDate(a.date)}</p></div>${!a.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
+    return `${renderHeader('Pengumuman', true)}<div class="container">${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddAnnouncementModal()">${getIcon('plus')} Buat Pengumuman</button>`:''}<div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputPengumuman" placeholder="Cari pengumuman..." value="${escapeHtml(state.searchQuery)}" oninput="activeInputId='searchInputPengumuman'; state.searchQuery=this.value; renderPage()"></div><div class="filter-chips mb-16"><button class="chip ${state.filterStatus==='semua'?'active':''}" onclick="state.filterStatus='semua';renderPage()">Semua</button>${categories.map(c=>`<button class="chip ${state.filterStatus===c?'active':''}" onclick="state.filterStatus='${c}';renderPage()">${escapeHtml(c)}</button>`).join('')}</div>${anns.map(a=>`<div class="card mb-8" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:4px solid var(--danger);':''}"><div class="flex items-start gap-10"><span>${ic('i-mega')}</span><div class="flex-1"><p class="item-title">${escapeHtml(a.title)}</p><p class="item-subtitle">${escapeHtml(a.category)} • ${formatShortDate(a.date)}</p></div>${!a.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
 }
 
 async function markAnnouncementRead(announcementId) {
@@ -1522,8 +1530,8 @@ async function renderNotifikasiPage() {
     }
     const notifs = state.notifications;
     const unread = notifs.filter(n => !n.isRead).length;
-    const typeIcons = { reminder:'⏰', pembayaran_berhasil:'✅', pembayaran_ditolak:'❌', bukti_diterima:'📤', pengumuman:'📢', pengeluaran:'💸', info:'ℹ️', pembayaran_menunggu:'⏳' };
-    return `${renderHeader('Notifikasi', true)}<div class="container"><div class="card-header"><span class="card-title">${unread} belum dibaca</span><button style="font-size:12px;color:var(--primary);" onclick="markAllNotificationsRead()">Tandai semua dibaca</button></div>${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showBroadcastModal()">${getIcon('bell')} Kirim Notifikasi ke Kelas</button>`:''}${notifs.length === 0 ? '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-title">Tidak ada notifikasi</div></div>' : notifs.map(n=>`<div class="card mb-8" style="${!n.isRead?'background:var(--primary-light);':''}" onclick="handleNotificationClick(${n.id})"><div class="flex gap-10"><span>${typeIcons[n.type]||'ℹ️'}</span><div class="flex-1"><p class="item-title">${escapeHtml(n.title)}</p><p class="item-subtitle">${escapeHtml(n.message)}</p><p style="font-size:11px;color:var(--text-muted);">${formatShortDate(n.date)}</p></div>${!n.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
+    const typeIcons = { reminder:'i-clock', pembayaran_berhasil:'i-checkc', pembayaran_ditolak:'i-x', bukti_diterima:'i-send', pengumuman:'i-mega', pengeluaran:'i-receipt', info:'i-info', pembayaran_menunggu:'i-clock' };
+    return `${renderHeader('Notifikasi', true)}<div class="container"><div class="card-header"><span class="card-title">${unread} belum dibaca</span><button style="font-size:12px;color:var(--primary);" onclick="markAllNotificationsRead()">Tandai semua dibaca</button></div>${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showBroadcastModal()">${getIcon('bell')} Kirim Notifikasi ke Kelas</button>`:''}${notifs.length === 0 ? '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-title">Tidak ada notifikasi</div></div>' : notifs.map(n=>`<div class="card mb-8" style="${!n.isRead?'background:var(--primary-light);':''}" onclick="handleNotificationClick(${n.id})"><div class="flex gap-10"><span>${ic(typeIcons[n.type]||'i-info')}</span><div class="flex-1"><p class="item-title">${escapeHtml(n.title)}</p><p class="item-subtitle">${escapeHtml(n.message)}</p><p style="font-size:11px;color:var(--text-muted);">${formatShortDate(n.date)}</p></div>${!n.isRead?'<span style="width:8px;height:8px;background:var(--primary);border-radius:50%;"></span>':''}</div></div>`).join('')}</div>`;
 }
 
 async function markAllNotificationsRead() {
@@ -1569,7 +1577,7 @@ function renderKalenderPage() {
     }
     html += '</div>';
     const dueInfoLabel = state.cashSettings.frequency === 'weekly' ? 'setiap akhir minggu' : (state.cashSettings.paymentDeadlineDays > 0 ? `${state.cashSettings.paymentDeadlineDays} hari setelah periode dimulai` : 'tanggal 20');
-    return `${renderHeader('Kalender Kas', true)}<div class="container"><div class="card mb-16"><div class="flex justify-between items-center mb-8"><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===0?11:state.calendarMonth-1;if(state.calendarMonth===11)state.calendarYear--;renderPage()">←</button><span style="font-weight:700;">${months[month]} ${year}</span><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===11?0:state.calendarMonth+1;if(state.calendarMonth===0)state.calendarYear++;renderPage()">→</button></div>${html}<div style="display:flex;gap:12px;margin-top:16px;font-size:11px;color:var(--text-secondary);"><span>🟢 Lunas</span><span>🔴 Belum/Terlambat</span><span>🟡 Menunggu</span><span>🔵 Deadline</span></div></div><div class="card"><div class="card-header"><span class="card-title">Event Bulan Ini</span></div><p>📌 Jatuh tempo kas: ${dueInfoLabel}</p></div></div>`;
+    return `${renderHeader('Kalender Kas', true)}<div class="container"><div class="card mb-16"><div class="flex justify-between items-center mb-8"><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===0?11:state.calendarMonth-1;if(state.calendarMonth===11)state.calendarYear--;renderPage()">←</button><span style="font-weight:700;">${months[month]} ${year}</span><button class="btn btn-outline btn-sm" onclick="state.calendarMonth=state.calendarMonth===11?0:state.calendarMonth+1;if(state.calendarMonth===0)state.calendarYear++;renderPage()">→</button></div>${html}<div style="display:flex;gap:12px;margin-top:16px;font-size:11px;color:var(--text-secondary);"><span>🟢 Lunas</span><span>🔴 Belum/Terlambat</span><span>🟡 Menunggu</span><span>🔵 Deadline</span></div></div><div class="card"><div class="card-header"><span class="card-title">Event Bulan Ini</span></div><p style="display:flex;align-items:center;gap:7px">${ic('i-cal')} Jatuh tempo kas: ${dueInfoLabel}</p></div></div>`;
 }
 
 function showCalendarEvent(day, month, year) {
@@ -1688,7 +1696,7 @@ async function renderStatistikPage() {
         <div class="container" data-testid="bendahara-dashboard">
             <div class="card admin-mode-card text-center mb-16">
                 <div class="flex justify-between items-center mb-12">
-                    <span class="badge-admin">🛡️ Mode Bendahara Admin</span>
+                    <span class="badge-admin">${ic('i-shield')} Mode Bendahara Admin</span>
                     <span style="font-size:12px;opacity:0.8;">${escapeHtml(user.kelas || 'Kelas')}</span>
                 </div>
                 <p style="font-size:13px;opacity:0.9;">Saldo Kas Kelas (Live Backend)</p>
@@ -1749,37 +1757,37 @@ function renderProfilPage() {
         </div>
         <div class="card">
             <div class="menu-item" onclick="navigateTo('edit-profil')">
-                <span class="menu-icon">✏️</span>
+                <span class="menu-icon">${ic('i-edit')}</span>
                 <div class="flex-1"><div class="menu-label">Edit Profil</div><div class="menu-desc">Ubah foto, email, atau nomor HP</div></div>
                 <span class="menu-arrow">→</span>
             </div>
             <div class="menu-item" onclick="navigateTo('pengaturan')">
-                <span class="menu-icon">⚙️</span>
+                <span class="menu-icon">${ic('i-gear')}</span>
                 <div class="flex-1"><div class="menu-label">Pengaturan</div><div class="menu-desc">Notifikasi, tema, bahasa</div></div>
                 <span class="menu-arrow">→</span>
             </div>
             <div class="menu-item" onclick="navigateTo('faq')">
-                <span class="menu-icon">❓</span>
+                <span class="menu-icon">${ic('i-help')}</span>
                 <div class="flex-1"><div class="menu-label">FAQ</div><div class="menu-desc">Pertanyaan yang sering diajukan</div></div>
                 <span class="menu-arrow">→</span>
             </div>
             <div class="menu-item" onclick="navigateTo('bantuan')">
-                <span class="menu-icon">📞</span>
+                <span class="menu-icon">${ic('i-bell')}</span>
                 <div class="flex-1"><div class="menu-label">Bantuan</div><div class="menu-desc">Hubungi bendahara atau wali kelas</div></div>
                 <span class="menu-arrow">→</span>
             </div>
             <div class="menu-item" onclick="navigateTo('report-problem')">
-                <span class="menu-icon">📝</span>
+                <span class="menu-icon">${ic('i-doc')}</span>
                 <div class="flex-1"><div class="menu-label">Laporkan Masalah</div><div class="menu-desc">Sampaikan kendala yang kamu alami</div></div>
                 <span class="menu-arrow">→</span>
             </div>
             <div class="menu-item" onclick="navigateTo('my-reports')">
-                <span class="menu-icon">📋</span>
+                <span class="menu-icon">${ic('i-list')}</span>
                 <div class="flex-1"><div class="menu-label">Laporan Saya</div><div class="menu-desc">Lihat status laporan kamu</div></div>
                 <span class="menu-arrow">→</span>
             </div>
             <div class="menu-item" onclick="handleLogout()">
-                <span class="menu-icon" style="color:var(--danger);">🚪</span>
+                <span class="menu-icon" style="color:var(--danger);">${ic('i-logout')}</span>
                 <div class="flex-1"><div class="menu-label" style="color:var(--danger);">Keluar</div><div class="menu-desc">Akhiri sesi</div></div>
                 <span class="menu-arrow">→</span>
             </div>
@@ -1826,7 +1834,7 @@ async function confirmLogout() {
 
 function renderEditProfilPage() {
     const user = getCurrentUser();
-    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">📸 Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${escapeHtml(user.nis || '')}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${escapeHtml(user.kelas || '')}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${escapeHtml(user.email || '')}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${escapeHtml(user.phone || '')}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
+    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${escapeHtml(user.nis || '')}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${escapeHtml(user.kelas || '')}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${escapeHtml(user.email || '')}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${escapeHtml(user.phone || '')}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
 }
 
 async function handleProfilePhotoUpload(event) {
@@ -1914,7 +1922,7 @@ async function saveEditProfile() {
 
 function renderPengaturanPage() {
     const isDark = state.theme === 'dark';
-    return `${renderHeader('Pengaturan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Tampilan</span></div><button class="list-item" onclick="setTheme('light')"><span>☀️</span> Light Mode ${!isDark?'✓':''}</button><button class="list-item" onclick="setTheme('dark')"><span>🌙</span> Dark Mode ${isDark?'✓':''}</button><button class="list-item" onclick="setTheme('system')"><span>💻</span> System</button></div><div class="card mb-16"><div class="card-header"><span class="card-title">Notifikasi</span></div><div class="list-item"><span>🔔</span> Pengingat Pembayaran <div class="toggle-switch ${state.reminderSettings.paymentReminder?'active':''}" onclick="state.reminderSettings.paymentReminder=!state.reminderSettings.paymentReminder;saveSettings()"><div class="toggle-dot"></div></div></div><div class="list-item"><span>📢</span> Pengumuman <div class="toggle-switch ${state.reminderSettings.announcementNotif?'active':''}" onclick="state.reminderSettings.announcementNotif=!state.reminderSettings.announcementNotif;saveSettings()"><div class="toggle-dot"></div></div></div><div class="list-item"><span>🔊</span> Suara <div class="toggle-switch ${state.reminderSettings.soundNotif?'active':''}" onclick="state.reminderSettings.soundNotif=!state.reminderSettings.soundNotif;saveSettings()"><div class="toggle-dot"></div></div></div></div><button class="btn btn-danger btn-block" onclick="handleLogout()">🚪 Keluar</button></div>`;
+    return `${renderHeader('Pengaturan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Tampilan</span></div><button class="list-item" onclick="setTheme('light')"><span>${ic('i-sun')}</span> Light Mode ${!isDark?'✓':''}</button><button class="list-item" onclick="setTheme('dark')"><span>${ic('i-moon')}</span> Dark Mode ${isDark?'✓':''}</button><button class="list-item" onclick="setTheme('system')"><span>${ic('i-monitor')}</span> System</button></div><div class="card mb-16"><div class="card-header"><span class="card-title">Notifikasi</span></div><div class="list-item"><span>${ic('i-bell')}</span> Pengingat Pembayaran <div class="toggle-switch ${state.reminderSettings.paymentReminder?'active':''}" onclick="state.reminderSettings.paymentReminder=!state.reminderSettings.paymentReminder;saveSettings()"><div class="toggle-dot"></div></div></div><div class="list-item"><span>${ic('i-mega')}</span> Pengumuman <div class="toggle-switch ${state.reminderSettings.announcementNotif?'active':''}" onclick="state.reminderSettings.announcementNotif=!state.reminderSettings.announcementNotif;saveSettings()"><div class="toggle-dot"></div></div></div><div class="list-item"><span>${ic('i-cash')}</span> Suara <div class="toggle-switch ${state.reminderSettings.soundNotif?'active':''}" onclick="state.reminderSettings.soundNotif=!state.reminderSettings.soundNotif;saveSettings()"><div class="toggle-dot"></div></div></div></div><button class="btn btn-danger btn-block" onclick="handleLogout()">${ic('i-logout')} Keluar</button></div>`;
 }
 
 async function saveSettings() {
@@ -1958,7 +1966,7 @@ function renderFaqPage() {
 }
 
 function renderBantuanPage() {
-    return `${renderHeader('Bantuan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Kontak Bendahara</span></div><p>📱 0812-3456-7890</p><a class="btn btn-outline btn-sm mt-8" href="tel:081234567890">Hubungi</a></div><div class="card mb-16"><div class="card-header"><span class="card-title">Wali Kelas</span></div><p>📱 0812-9876-5432</p><a class="btn btn-outline btn-sm mt-8" href="tel:081298765432">Hubungi</a></div><div class="card"><button class="list-item" onclick="navigateTo('faq')"><span>❓</span> FAQ</button><button class="list-item" onclick="navigateTo('report-problem')"><span>📝</span> Laporkan Masalah</button></div></div>`;
+    return `${renderHeader('Bantuan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Kontak Bendahara</span></div><p>0812-3456-7890</p><a class="btn btn-outline btn-sm mt-8" href="tel:081234567890">Hubungi</a></div><div class="card mb-16"><div class="card-header"><span class="card-title">Wali Kelas</span></div><p>0812-9876-5432</p><a class="btn btn-outline btn-sm mt-8" href="tel:081298765432">Hubungi</a></div><div class="card"><button class="list-item" onclick="navigateTo('faq')"><span>${ic('i-help')}</span> FAQ</button><button class="list-item" onclick="navigateTo('report-problem')">${ic('i-doc')} Laporkan Masalah</button></div></div>`;
 }
 
 function renderReportProblemPage() {
@@ -1998,7 +2006,7 @@ async function submitReport() {
 
 function renderMyReportsPage() {
     const userReports = state.userReports.filter(r => r.userId === getCurrentUser().id);
-    return `${renderHeader('Laporan Saya', true)}<div class="container">${userReports.map(r=>`<div class="card mb-8"><p class="item-title">${escapeHtml(r.title)}</p><p class="item-subtitle">${escapeHtml(r.category)} • ${formatShortDate(r.createdAt)}</p><span class="badge badge-info">${escapeHtml(r.status)}</span>${r.response?`<div style="margin-top:8px;padding:8px;background:var(--input-bg);border-radius:6px;font-size:12px;"><strong>Respons:</strong> ${escapeHtml(r.response)}</div>`:''}${r.attachment?`<button class="btn btn-outline btn-sm mt-8" onclick="window.open('api/report_attachment.php?id=${r.id}','_blank','noopener')">📄 Lihat Lampiran</button>`:''}</div>`).join('') || '<div class="empty-state">Belum ada laporan.</div>'}</div>`;
+    return `${renderHeader('Laporan Saya', true)}<div class="container">${userReports.map(r=>`<div class="card mb-8"><p class="item-title">${escapeHtml(r.title)}</p><p class="item-subtitle">${escapeHtml(r.category)} • ${formatShortDate(r.createdAt)}</p><span class="badge badge-info">${escapeHtml(r.status)}</span>${r.response?`<div style="margin-top:8px;padding:8px;background:var(--input-bg);border-radius:6px;font-size:12px;"><strong>Respons:</strong> ${escapeHtml(r.response)}</div>`:''}${r.attachment?`<button class="btn btn-outline btn-sm mt-8" onclick="window.open('api/report_attachment.php?id=${r.id}','_blank','noopener')">${ic('i-doc')} Lihat Lampiran</button>`:''}</div>`).join('') || '<div class="empty-state">Belum ada laporan.</div>'}</div>`;
 }
 
 function renderSearchPage() {
@@ -2010,7 +2018,7 @@ function renderSearchPage() {
         state.announcements.forEach(a => { if (a.title.toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Pengumuman', title: a.title, sub: a.category, page: 'detail-pengumuman', id: a.id }); });
         state.expenses.forEach(e => { if (e.name.toLowerCase().includes(q.toLowerCase())) results.push({ type: 'Pengeluaran', title: e.name, sub: e.category, page: 'detail-pengeluaran', id: e.id }); });
     }
-    return `${renderHeader('Pencarian', true)}<div class="container"><div class="search-input mb-16"><span>🔍</span><input type="text" id="searchInputGlobal" placeholder="Cari..." value="${state.searchQuery}" oninput="activeInputId='searchInputGlobal'; state.searchQuery=this.value; renderPage()"></div>${q===''?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Cari di KasKelas</div></div>':results.length===0?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Tidak ada hasil</div></div>':results.map(r=>`<div class="card mb-8" onclick="navigateTo('${r.page}',{id:'${r.id}'})"><div class="flex items-center gap-10"><span>${r.type==='Anggota'?'👤':r.type==='Transaksi'?'💳':r.type==='Pengumuman'?'📢':'💸'}</span><div class="flex-1"><p class="item-title">${escapeHtml(r.title)}</p><p class="item-subtitle">${r.type} • ${escapeHtml(String(r.sub))}</p></div><span>→</span></div></div>`).join('')}</div>`;
+    return `${renderHeader('Pencarian', true)}<div class="container"><div class="search-input mb-16"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputGlobal" placeholder="Cari..." value="${state.searchQuery}" oninput="activeInputId='searchInputGlobal'; state.searchQuery=this.value; renderPage()"></div>${q===''?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Cari di KasKelas</div></div>':results.length===0?'<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Tidak ada hasil</div></div>':results.map(r=>`<div class="card mb-8" onclick="navigateTo('${r.page}',{id:'${r.id}'})"><div class="flex items-center gap-10"><span>${r.type==='Anggota'?'👤':r.type==='Transaksi'?'💳':r.type==='Pengumuman'?'📢':'💸'}</span><div class="flex-1"><p class="item-title">${escapeHtml(r.title)}</p><p class="item-subtitle">${r.type} • ${escapeHtml(String(r.sub))}</p></div><span>→</span></div></div>`).join('')}</div>`;
 }
 
 // ==================== VERIFIKASI (BENDAHARA) ====================
@@ -2026,13 +2034,13 @@ async function renderVerifikasiPage() {
         pendingHtml = pending.map(tx => `
             <div class="card mb-8">
                 <div class="flex items-center gap-10">
-                    <span>💳</span>
+                    ${ic('i-card')}
                     <div class="flex-1">
                         <p class="item-title">${escapeHtml(tx.studentName)} - ${escapeHtml(tx.periodLabel || tx.period_label || 'Periode')}</p>
                         <p class="item-subtitle">${tx.id} • ${formatRupiah(tx.amount)} • ${tx.method.toUpperCase()}</p>
                     </div>
                     <div class="flex gap-8">
-                        ${tx.proof?`<button class="btn btn-sm btn-outline" onclick="previewBukti(${tx.id})">📄 Bukti</button>`:''}
+                        ${tx.proof?`<button class="btn btn-sm btn-outline" onclick="previewBukti(${tx.id})">${ic('i-eye')} Bukti</button>`:''}
                         <button class="btn btn-sm btn-primary" onclick="verifyPayment(${tx.id}, 'berhasil')">Setujui</button>
                         <button class="btn btn-sm btn-danger" onclick="showRejectPrompt(${tx.id})">Tolak</button>
                     </div>
@@ -2541,7 +2549,7 @@ async function renderLaporanMasukPage() {
         reports.map(r=>`
         <div class="card mb-8" onclick="navigateTo('detail-laporan',{id:${r.id}})">
             <div class="flex items-start gap-10">
-                <span>📝</span>
+                ${ic('i-doc')}
                 <div class="flex-1">
                     <p class="item-title">${escapeHtml(r.title)}</p>
                     <p class="item-subtitle">${escapeHtml(r.reporter_name || '')} • ${formatShortDate(r.created_at)}</p>
@@ -2576,7 +2584,7 @@ async function renderDetailLaporanPage() {
             <div class="card-header"><span class="card-title">Deskripsi</span></div>
             <p style="font-size:14px;line-height:1.6;">${escapeHtml(r.description)}</p>
             ${r.transaction_id ? `<p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Terkait transaksi #${escapeHtml(String(r.transaction_id))}</p>` : ''}
-            ${r.attachment ? `<button class="btn btn-outline btn-sm mt-8" onclick="window.open('api/report_attachment.php?id=${r.id}','_blank','noopener')">📄 Lihat Lampiran</button>` : ''}
+            ${r.attachment ? `<button class="btn btn-outline btn-sm mt-8" onclick="window.open('api/report_attachment.php?id=${r.id}','_blank','noopener')">${ic('i-doc')} Lihat Lampiran</button>` : ''}
         </div>
         <div class="card">
             <div class="card-header"><span class="card-title">Respons Bendahara</span></div>
@@ -2690,3 +2698,4 @@ async function initApp() {
 }
 
 initApp();
+

@@ -1,0 +1,47 @@
+<!DOCTYPE html><html><head><title>cek...</title></head><body><pre id="o">jalan</pre><script>
+(async () => {
+    const o = document.getElementById('o');
+    const out = [];
+    const api = async (m, u, b, t) => {
+        const h = {};
+        if (t) h['X-CSRF-Token'] = t;
+        if (b) h['Content-Type'] = 'application/json';
+        const r = await fetch('/kaskelas/api/' + u, { method: m, headers: h, body: b ? JSON.stringify(b) : null });
+        return { status: r.status, j: await r.json() };
+    };
+    const login = async (u, p) => {
+        const d = await api('GET', 'csrf.php').then(x => x.j);
+        return api('POST', 'login.php', { username: u, password: p }, d.csrf_token);
+    };
+
+    // 1. login BENDAHARA
+    const lb = await login('bendahara', 'bendahara123');
+    out.push('login bendahara: ' + lb.status + ' role=' + (lb.j.user ? lb.j.user.role : '?'));
+    // 2. GET pengumuman sebagai bendahara
+    const ab = await api('GET', 'announcements.php?limit=100');
+    out.push('bendahara lihat ' + (ab.j.announcements ? ab.j.announcements.length : 'ERR') + ' pengumuman: ' +
+        (ab.j.announcements || []).map(a => '#' + a.id + ' ' + a.title).join(' | '));
+    // 3. POST pengumuman baru sebagai bendahara (tes Forbidden)
+    const pb = await api('POST', 'announcements.php', { title: 'CEK-FORBIDDEN-TEST', content: 'uji', category: 'kas', priority: 'normal' });
+    out.push('bendahara POST pengumuman: ' + pb.status + ' ' + JSON.stringify(pb.j).slice(0, 80));
+    // 4. login RISYAD (ganti sesi)
+    const lr = await login('risyad', 'password123');
+    out.push('login risyad: ' + lr.status + ' role=' + (lr.j.user ? lr.j.user.role : '?'));
+    // 5. POST pengumuman sebagai SISWA (harus Forbidden)
+    const ps = await api('POST', 'announcements.php', { title: 'x', content: 'y' });
+    out.push('siswa POST pengumuman: ' + ps.status + ' ' + JSON.stringify(ps.j).slice(0, 60));
+    // 6. GET pengumuman sebagai siswa — apakah pengumuman bendahara terlihat?
+    const as = await api('GET', 'announcements.php?limit=100');
+    out.push('siswa lihat ' + (as.j.announcements ? as.j.announcements.length : 'ERR') + ' pengumuman: ' +
+        (as.j.announcements || []).map(a => '#' + a.id + ' ' + a.title).join(' | '));
+    // 7. POST tambah anggota sebagai siswa (harus Forbidden) & sebagai bendahara perlu sesi b lagi — skip
+    const pa = await api('POST', 'students.php', { full_name: 'x', nis: 'X1', username: 'x1' });
+    out.push('siswa POST anggota: ' + pa.status + ' ' + JSON.stringify(pa.j).slice(0, 60));
+    // 8. broadcast sebagai siswa (harus Forbidden)
+    const pn = await api('POST', 'notifications.php', { action: 'broadcast', title: 'x', message: 'y' });
+    out.push('siswa broadcast: ' + pn.status + ' ' + JSON.stringify(pn.j).slice(0, 60));
+
+    o.textContent = out.join('\n');
+    document.title = 'CEK-SELESAI';
+})();
+</script></body></html>

@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html><html lang="id" data-theme="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FINAL - Dashboard Bendahara - KasKelas</title><link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Fira+Code:wght@500;600&display=swap" rel="stylesheet"><style>
+:root{--bg:#FBFAFF;--ink:#2D2A4A;--muted:#8B87A8;--violet:#7367F0;--mint:#3ECFAF;--pink:#F26D9C;--peach:#FF8E6E;--line:#EEEBF8;--r:24px}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;font-size:15px;padding-bottom:110px}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px 26px}
+.amount{font-family:'Fira Code',monospace;font-variant-numeric:tabular-nums}
+.ic{stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.bar{position:sticky;top:0;z-index:5;border-radius:0 0 28px 28px;padding:16px 18px;color:#fff;background:linear-gradient(120deg,#7367F0,#9B6DF3 60%,#F26D9C);box-shadow:0 10px 30px rgba(115,103,240,.35);display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.bar .l{display:flex;gap:11px;align-items:center}
+.logo{width:42px;height:42px;border-radius:15px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center}
+.bar b{font-weight:900;font-size:16px;display:block}
+.bar small{font-size:10.5px;letter-spacing:.14em;font-weight:800;opacity:.85;text-transform:uppercase}
+.bar .r{display:flex;gap:8px}
+.bbtn{width:40px;height:40px;border-radius:13px;border:none;background:rgba(255,255,255,.2);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sec{margin:24px 2px 12px;font-weight:900;font-size:15px;display:flex;align-items:center;gap:8px}
+.sec:before{content:'';width:18px;height:5px;border-radius:99px;background:linear-gradient(90deg,#F26D9C,#7367F0)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.kpi{background:#fff;border-radius:var(--r);padding:16px;box-shadow:0 6px 22px rgba(115,103,240,.1)}
+.kpi .lbl{font-size:11px;color:var(--muted);font-weight:800}
+.kpi .val{font-family:'Fira Code';font-size:21px;font-weight:600;margin-top:6px}
+.kpi .sub{font-size:10.5px;color:var(--muted)}
+.kpi.big{grid-column:1/-1;border-radius:28px;color:#fff;background:linear-gradient(120deg,#7367F0,#F26D9C);display:flex;align-items:center;justify-content:space-between}
+.kpi.big .lbl{color:rgba(255,255,255,.85)}.kpi.big .val{font-size:30px}.kpi.big .sub{color:rgba(255,255,255,.75)}
+.kpi.big .pill{background:rgba(255,255,255,.25);font-weight:900;font-size:11px;padding:6px 13px;border-radius:99px}
+.qrow{display:flex;gap:10px}
+.qa{flex:1;min-height:66px;border:none;border-radius:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-weight:900;font-size:11px;color:var(--ink);background:#fff;box-shadow:0 6px 22px rgba(115,103,240,.12)}
+.qa .ic{width:20px;height:20px;color:var(--violet)}
+.dense{background:#fff;border-radius:var(--r);box-shadow:0 6px 22px rgba(115,103,240,.1);overflow:hidden}
+.dr{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);min-height:50px}.dr:last-child{border:none}
+.dr .n{flex:1}.dr .n b{font-size:13px;display:block}.dr .n small{color:var(--muted);font-size:10.5px;font-family:'Fira Code'}
+.act{display:flex;gap:6px}
+.act button{width:33px;height:33px;border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ok{background:#E4E0FD;color:var(--violet)}.no{background:#FDE1EC;color:var(--pink)}.eye{background:#F3F1FD;color:var(--muted)}
+.tag{font-family:'Fira Code';font-size:10px;font-weight:600;padding:4px 10px;border-radius:99px}
+.t-ok{background:#E4E0FD;color:var(--violet)}.t-w{background:#FFE8DE;color:#E56A3D}
+/* BOTTOM NAV FINAL bendahara */
+.bn{position:fixed;bottom:14px;left:14px;right:14px;max-width:532px;margin:auto;background:#fff;border-radius:24px;box-shadow:0 12px 36px rgba(45,42,74,.2);display:flex;justify-content:space-around;padding:9px 8px}
+.bn button{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;font-weight:800;background:none;border:none;cursor:pointer;min-height:52px;min-width:60px;color:var(--muted);border-radius:16px;padding:6px 4px}
+.bn button .ic{width:21px;height:21px}
+.bn button.active{background:linear-gradient(120deg,#7367F0,#F26D9C);color:#fff;box-shadow:0 6px 16px rgba(115,103,240,.35)}
+</style></head><body>
+<svg style="display:none">
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m22 4-10 10-3-3"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1z"/><path d="M8 7h8"/><path d="M8 11h8"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.8-3.8 3.9-6 7.5-6s6.7 2.2 7.5 6"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-mega" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+<symbol id="i-set" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15A9 9 0 0 0 21 12a9 9 0 0 0-.1-1M14.7 5.3A9 9 0 0 0 12 5c-3 0-5.5 1.7-6.9 4M4.6 9A9 9 0 0 0 3 12c0 3 1.7 5.5 4 6.9M9 19.7c1 .2 2 .3 3 .3 3 0 5.5-1.7 6.9-4"/></symbol>
+</svg>
+
+<header class="bar">
+<div class="l"><span class="logo"><svg class="ic" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span><div><b>KasKelas Operator</b><small>Mode Bendahara - XII RPL 3</small></div></div>
+<div class="r"><button class="bbtn" title="Ganti tema"><svg class="ic" viewBox="0 0 24 24" style="width:17px;height:17px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button><button class="bbtn" title="Pengaturan"><svg class="ic" viewBox="0 0 24 24" style="width:17px;height:17px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15A9 9 0 0 0 21 12a9 9 0 0 0-.1-1M14.7 5.3A9 9 0 0 0 12 5c-3 0-5.5 1.7-6.9 4M4.6 9A9 9 0 0 0 3 12c0 3 1.7 5.5 4 6.9M9 19.7c1 .2 2 .3 3 .3 3 0 5.5-1.7 6.9-4"/></svg></button></div>
+</header>
+
+<div class="wrap">
+<div class="sec" style="margin-top:20px">Ringkasan Kas Kelas</div>
+<div class="kpis">
+<div class="kpi big"><div><span class="lbl">Saldo Kas - Live Backend</span><div class="val">Rp 183.000</div><div class="sub">opening + pemasukan - pengeluaran</div></div><span class="pill">XII RPL 3</span></div>
+<div class="kpi"><span class="lbl">Pemasukan Disetujui</span><div class="val" style="color:var(--mint)">Rp 216.000</div><div class="sub">72 disetujui</div></div>
+<div class="kpi"><span class="lbl">Pengeluaran</span><div class="val" style="color:var(--pink)">Rp 225.000</div><div class="sub">2 keluar</div></div>
+<div class="kpi"><span class="lbl">Menunggu Verifikasi</span><div class="val">3</div><div class="sub">perlu aksi</div></div>
+<div class="kpi"><span class="lbl">Siswa Menunggak</span><div class="val">9</div><div class="sub amount">Rp 27.000</div></div>
+</div>
+<div class="sec">Aksi Cepat Operator</div>
+<div class="qrow">
+<button class="qa"><svg class="ic" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m22 4-10 10-3-3"/></svg>Verifikasi</button>
+<button class="qa"><svg class="ic" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg>Keluaran</button>
+<button class="qa"><svg class="ic" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>Pengumuman</button>
+<button class="qa"><svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></svg>Anggota</button>
+</div>
+<div class="sec">Menunggu Verifikasi (3)</div>
+<div class="dense">
+<div class="dr"><div class="n"><b>Andika Pratama</b><small>#1042 - QRIS - 17/23 Aug</small></div><span class="amount" style="font-weight:700">Rp 3.000</span><div class="act"><button class="eye" title="Lihat"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="ok" title="Setujui"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="m20 6-11 11-5-5"/></svg></button><button class="no" title="Tolak"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div></div>
+<div class="dr"><div class="n"><b>Bunga Lestari</b><small>#1043 - Transfer BCA - 17/23 Aug</small></div><span class="amount" style="font-weight:700">Rp 3.000</span><div class="act"><button class="eye" title="Lihat"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="ok" title="Setujui"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="m20 6-11 11-5-5"/></svg></button><button class="no" title="Tolak"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div></div>
+<div class="dr"><div class="n"><b>Cahyo Nugroho</b><small>#1044 - Cash - 10/16 Aug</small></div><span class="amount" style="font-weight:700">Rp 3.000</span><div class="act"><button class="eye" title="Lihat"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="ok" title="Setujui"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="m20 6-11 11-5-5"/></svg></button><button class="no" title="Tolak"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div></div>
+</div>
+<div class="sec">Tunggakan Kelas</div>
+<div class="dense">
+<div class="dr"><div class="n"><b>Total Tunggakan</b><small>9 siswa menunggak</small></div><span class="amount" style="font-weight:800;color:var(--pink)">Rp 27.000</span></div>
+<div class="dr"><div class="n"><b>Eko Saputra</b><small>2 periode</small></div><span class="tag t-w">Rp 6.000</span></div>
+<div class="dr"><div class="n"><b>Fajar Ramadhan</b><small>1 periode</small></div><span class="tag t-w">Rp 3.000</span></div>
+</div>
+</div>
+<nav class="bn">
+<button class="active"><svg class="ic" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>Home</button>
+<button><svg class="ic" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m22 4-10 10-3-3"/></svg>Verifikasi</button>
+<button><svg class="ic" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg>Keluaran</button>
+<button><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Notifikasi</button>
+<button><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.8-3.8 3.9-6 7.5-6s6.7 2.2 7.5 6"/></svg>Profil</button>
+</nav>
+</body></html>

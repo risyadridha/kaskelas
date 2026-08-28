@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V4 Siswa - Brutalist Fintech</title><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"><style>
+:root{--bg:#F5F3EE;--ink:#111;--yel:#FFD60A;--blue:#2545FF;--red:#E11D48;--line:#111;--sh:5px 5px 0 #111;--r:14px}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--ink);font-family:Archivo,system-ui,sans-serif;font-size:15px;padding-bottom:90px}
+.wrap{max-width:430px;margin:0 auto;padding:18px 16px}
+.amount{font-family:'Space Mono',monospace;font-variant-numeric:tabular-nums}
+.bx{background:#fff;border:2px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.top b{font-family:Archivo;font-weight:900;font-size:19px;text-transform:uppercase;letter-spacing:-.02em}
+.top span{display:block;font-size:11px;font-family:'Space Mono'}
+.tg{width:46px;height:46px;border:2px solid var(--line);border-radius:12px;background:var(--yel);box-shadow:3px 3px 0 #111;cursor:pointer;font-weight:900;font-size:16px}
+.ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.hero{padding:20px;position:relative}
+.hero .lbl{display:inline-block;background:var(--yel);border:2px solid var(--line);font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:.1em;padding:4px 10px;border-radius:8px;box-shadow:3px 3px 0 #111}
+.hero .bal{font-family:'Space Mono';font-size:36px;font-weight:700;margin:14px 0 4px;letter-spacing:-2px}
+.hero .due{font-family:'Space Mono';font-size:11.5px;margin-bottom:16px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:2px solid var(--line);border-radius:12px;background:var(--blue);color:#fff;font-family:Archivo;font-weight:900;text-transform:uppercase;letter-spacing:.05em;font-size:13px;box-shadow:4px 4px 0 #111;cursor:pointer;text-decoration:none}
+.btn.yel{background:var(--yel);color:#111}
+.btn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 #111}
+.sec{margin:24px 2px 12px;font-weight:900;text-transform:uppercase;font-size:13px;letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+.sec:after{content:'';flex:1;height:2px;background:var(--line)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.qa{display:flex;flex-direction:column;gap:8px;padding:14px;cursor:pointer;min-height:84px;justify-content:center}
+.qa svg{width:26px;height:26px}
+.qa b{font-size:13px;text-transform:uppercase;font-weight:900}
+.qa small{font-family:'Space Mono';font-size:10.5px}
+.qa:hover{transform:translate(-1px,-1px);box-shadow:6px 6px 0 #111}
+.rows{overflow:hidden}
+.r{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:2px solid var(--line)}.r:last-child{border:none}
+.r .ic{width:38px;height:38px;border:2px solid var(--line);border-radius:10px;padding:7px;background:var(--yel);flex:none}
+.r .t{flex:1}.r .t b{font-size:13.5px;font-weight:700;display:block}.r .t small{font-family:'Space Mono';font-size:10.5px}
+.tag{font-family:'Space Mono';font-size:10px;font-weight:700;border:2px solid var(--line);padding:3px 8px;border-radius:8px}
+.t-ok{background:var(--yel)}.t-w{background:#fff}
+.bn{position:fixed;bottom:12px;left:12px;right:12px;max-width:406px;margin:auto;display:flex;justify-content:space-around;padding:8px;border-radius:16px}
+.bn button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-family:Archivo;font-weight:900;background:none;border:none;cursor:pointer;min-height:48px;min-width:56px;text-transform:uppercase}
+.bn .on{background:var(--yel);border:2px solid var(--line);border-radius:10px}
+</style></head><body>
+<svg style="display:none"><symbol id="i-hist" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol><symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></symbol><symbol id="i-mega" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></symbol></svg>
+<div class="wrap">
+<div class="top"><div><b>KasKelas</b><span>RISYAD - XII RPL 3</span></div><button class="tg" onclick="document.body.style.filter=document.body.style.filter?'':'invert(1) hue-rotate(180deg)'">◐</button></div>
+<div class="bx hero">
+<span class="lbl">Kas Minggu Ini - Belum Dibayar</span>
+<div class="bal">Rp 3.000</div>
+<p class="due">JATUH TEMPO: SENIN 23 AGU - 3 HARI LAGI</p>
+<a class="btn" href="#"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>Bayar Sekarang</a>
+</div>
+<div class="sec">Aksi Cepat</div>
+<div class="g2">
+<div class="bx qa"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div><b>Riwayat</b><small>SEMUA TRANSAKSI</small></div></div>
+<div class="bx qa"><svg class="ic" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><b>Tunggakan</b><small class="amount">RP 33.000</small></div></div>
+<div class="bx qa"><svg class="ic" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><div><b>Transparansi</b><small>KAS KELAS</small></div></div>
+<div class="bx qa"><svg class="ic" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><div><b>Pengumuman</b><small>2 BARU</small></div></div>
+</div>
+<div class="sec">Transaksi Terakhir</div>
+<div class="bx rows">
+<div class="r"><span class="ic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></span><div class="t"><b>Minggu 10-16 Aug</b><small>TRANSFER - 17 AUG</small></div><div style="text-align:right"><b class="amount">Rp 3.000</b><br><span class="tag t-ok">LUNAS</span></div></div>
+<div class="r"><span class="ic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></span><div class="t"><b>Minggu 17-23 Aug</b><small>TRANSFER - 21 AUG</small></div><div style="text-align:right"><b class="amount">Rp 3.000</b><br><span class="tag t-w">MENUNGGU</span></div></div>
+</div>
+<div class="sec">Info Kelas</div>
+<div class="g2">
+<div class="bx qa"><svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></svg><div><b>Anggota</b><small>36 SISWA</small></div></div>
+<div class="bx qa"><svg class="ic" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><div><b>Pengumuman</b><small>INFO KELAS</small></div></div>
+</div>
+</div>
+<nav class="bx bn"><button class="on">Home</button><button>Kas</button><button>Riwayat</button><button>Profil</button></nav>
+</body></html>

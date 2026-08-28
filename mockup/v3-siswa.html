@@ -1,0 +1,55 @@
+﻿<!DOCTYPE html><html lang="id" data-theme="light"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V3 Siswa - Glass Emerald</title><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Fira+Code:wght@500&display=swap" rel="stylesheet"><style>
+:root{--ink:#052E22;--muted:#4C6B60;--em:#059669;--em2:#067a56;--gold:#D97706;--red:#DC2626;--glass:rgba(255,255,255,.62);--glassb:rgba(255,255,255,.75);--line:rgba(6,78,59,.14)}
+[data-theme=dark]{--ink:#D9F2E8;--muted:#7FAF9F;--em:#34D399;--em2:#10B981;--gold:#FBBF24;--red:#F87171;--glass:rgba(10,40,32,.5);--glassb:rgba(16,64,50,.55);--line:rgba(52,211,153,.2)}
+*{box-sizing:border-box;margin:0}body{min-height:100vh;font-family:Manrope,system-ui,sans-serif;color:var(--ink);font-size:15px;padding-bottom:90px;background:radial-gradient(700px 400px at 8% -5%,rgba(5,150,105,.22),transparent),radial-gradient(700px 450px at 95% 10%,rgba(45,212,191,.18),transparent),radial-gradient(600px 400px at 50% 110%,rgba(217,119,6,.12),transparent),#F3FAF7}
+[data-theme=dark] body{background:radial-gradient(700px 400px at 8% -5%,rgba(5,150,105,.28),transparent),radial-gradient(700px 450px at 95% 10%,rgba(45,212,191,.2),transparent),radial-gradient(600px 400px at 50% 110%,rgba(217,119,6,.1),transparent),#03130E}
+.wrap{max-width:430px;margin:0 auto;padding:16px}
+.amount,.mono{font-family:'Fira Code',monospace;font-variant-numeric:tabular-nums}
+.glass{background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glassb);border-radius:20px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.who{display:flex;gap:10px;align-items:center}.av{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--em),#0D9488);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+.who b{display:block;font-size:16px}.who small{color:var(--muted);font-size:11.5px}
+.tg{width:44px;height:44px;border-radius:14px;border:1px solid var(--glassb);background:var(--glass);cursor:pointer;color:var(--ink);display:flex;align-items:center;justify-content:center}
+.ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.hero{padding:20px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;right:-40px;bottom:-60px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,rgba(5,150,105,.25),transparent 70%)}
+.lbl{font-family:'Fira Code';font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.bal{font-family:'Fira Code';font-size:34px;font-weight:500;margin:8px 0 2px;letter-spacing:-1px}
+.chip{display:inline-flex;gap:6px;align-items:center;background:color-mix(in srgb,var(--em) 15%,transparent);color:var(--em);font-weight:800;font-size:11px;padding:5px 12px;border-radius:99px}
+.due{font-size:12px;color:var(--muted);margin:10px 0 0}
+.sec{margin:22px 2px 10px;font-family:'Fira Code';font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.sec:after{content:'';flex:1;height:1px;background:var(--line)}
+.g9{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qa{display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;color:var(--ink);min-height:62px}
+.qa svg{width:22px;height:22px;color:var(--em)}
+.qa b{display:block;font-size:13.5px}.qa small{font-size:10.5px;color:var(--muted)}
+.rows{overflow:hidden}
+.r{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.r:last-child{border:none}
+.r .ic{width:36px;height:36px;border-radius:12px;padding:7px;background:color-mix(in srgb,var(--em) 14%,transparent);color:var(--em);flex:none}
+.r .t{flex:1}.r .t b{font-size:13.5px;display:block}.r .t small{color:var(--muted);font-size:11px}
+.tag{font-family:'Fira Code';font-size:10px;font-weight:600;padding:3px 9px;border-radius:99px}
+.t-ok{background:color-mix(in srgb,var(--em) 14%,transparent);color:var(--em)}.t-w{background:color-mix(in srgb,var(--gold) 16%,transparent);color:var(--gold)}
+.bn{position:fixed;bottom:12px;left:12px;right:12px;max-width:406px;margin:auto;display:flex;justify-content:space-around;padding:8px;border-radius:20px}
+.bn button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-family:Manrope;font-weight:700;background:none;border:none;cursor:pointer;min-height:48px;min-width:58px;color:var(--muted)}
+.bn .on{color:var(--em)}
+</style></head><body>
+<svg style="display:none"><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol><symbol id="i-mega" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol></svg>
+<div class="wrap">
+<div class="top"><div class="who"><div class="av">RS</div><div><b>Risyad</b><small>XII RPL 3 - Absen 01</small></div></div><button class="tg" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">◐</button></div>
+<div class="glass hero"><span class="lbl">Kas Minggu Ini</span><div class="bal">Rp 3.000</div><span class="chip">✓ 5/16 LUNAS</span><p class="due">Jatuh tempo Senin, 23 Agu - 3 hari lagi</p></div>
+<div class="sec">Aksi Cepat</div>
+<div class="g9">
+<div class="glass qa"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div><b>Riwayat</b><small>transaksiku</small></div></div>
+<div class="glass qa"><svg class="ic" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><div><b>Transparansi</b><small>kas kelas</small></div></div>
+<div class="glass qa"><svg class="ic" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><div><b>Pengumuman</b><small>2 baru</small></div></div>
+<div class="glass qa"><svg class="ic" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/></svg><div><b>Notifikasi</b><small>1 belum dibaca</small></div></div>
+</div>
+<div class="sec">Buku Kas - Transaksi Terakhir</div>
+<div class="glass rows">
+<div class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div class="t"><b>Minggu 10-16 Aug</b><small>Transfer - 17 Aug</small></div><span class="amount" style="font-weight:600">Rp 3.000</span><span class="tag t-ok">LUNAS</span></div>
+<div class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div class="t"><b>Minggu 17-23 Aug</b><small>Transfer - 21 Aug</small></div><span class="amount" style="font-weight:600">Rp 3.000</span><span class="tag t-w">MENUNGGU</span></div>
+</div>
+</div>
+<nav class="glass bn"><button class="on">● Home</button><button>Kas</button><button>Riwayat</button><button>Profil</button></nav>
+</body></html>

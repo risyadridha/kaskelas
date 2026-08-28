@@ -1,0 +1,10 @@
+# KasKelas — cegah cache SEMUA file aplikasi (css/js/html) selamanya
+<filesMatch "\.(css|js|html)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header set Pragma "no-cache"
+</filesMatch>
+
+# Lindungi folder upload legacy
+<filesMatch "\.(pdf|png|jpg|jpeg)$">
+    Require all denied
+</filesMatch>

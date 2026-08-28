@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <!-- Smart Kas - rekonstruksi logo (K biru + aksen kuning) -->
+  <rect width="240" height="240" rx="48" fill="#EAF2FB"/>
+  <!-- kuning: daun kiri atas -->
+  <path d="M78 38 C110 44 122 66 118 92 C116 106 106 116 92 118 C96 96 90 66 78 38 Z" fill="#F5D93F"/>
+  <!-- biru: batang + kaki K -->
+  <path d="M96 60 L128 60 L128 108 L170 60 L212 60 L162 118 L214 196 L172 196 L128 130 L128 196 L96 196 Z" fill="#1976D2"/>
+  <!-- kuning: seperempat lingkaran kaki -->
+  <path d="M96 196 A58 58 0 0 1 154 138 L154 196 Z" fill="#F5D93F" opacity=".95"/>
+  <!-- garis grid halus khas logo -->
+  <g stroke="#0D47A1" stroke-width="1.2" opacity=".35">
+    <path d="M100 66 L206 172" fill="none"/><path d="M112 60 L206 154" fill="none"/>
+    <path d="M84 60 L96 48" fill="none"/>
+  </g>
+</svg>

@@ -1,0 +1,13 @@
+﻿<!DOCTYPE html><html><head><title>mulai...</title></head><body><pre id="o">jalan</pre><script>
+(async () => {
+    const o = document.getElementById('o');
+    try {
+        const d = await fetch('/kaskelas/api/csrf.php').then(r => r.json());
+        o.textContent = 'csrf: ' + (d.csrf_token ? 'ok' : JSON.stringify(d));
+        const r = await fetch('/kaskelas/api/login.php', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': d.csrf_token }, body: JSON.stringify({ username: 'bendahara', password: 'bendahara123' }) });
+        const j = await r.json();
+        o.textContent = 'login status ' + r.status + ': ' + JSON.stringify(j).slice(0, 150);
+        document.title = 'DRIVER-SELESAI';
+    } catch (e) { o.textContent = 'ERR: ' + e.message; document.title = 'DRIVER-ERR'; }
+})();
+</script></body></html>

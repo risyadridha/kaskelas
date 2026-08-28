@@ -1,0 +1,68 @@
+﻿<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V5 Siswa - Soft Aurora</title><link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Fira+Code:wght@500&display=swap" rel="stylesheet"><style>
+:root{--bg:#FBFAFF;--ink:#2D2A4A;--muted:#8B87A8;--violet:#7367F0;--peach:#FF8E6E;--mint:#3ECFAF;--pink:#F26D9C;--line:#EEEBF8;--r:24px}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--ink);font-family:Nunito,system-ui,sans-serif;font-size:15px;padding-bottom:90px}
+.wrap{max-width:430px;margin:0 auto;padding:18px 16px}
+.amount{font-family:'Fira Code',monospace;font-variant-numeric:tabular-nums}
+.ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.top b{font-family:Nunito;font-weight:900;font-size:18px}
+.top span{display:block;font-size:11.5px;color:var(--muted)}
+.tg{width:44px;height:44px;border-radius:16px;border:none;background:#fff;box-shadow:0 4px 16px rgba(115,103,240,.15);cursor:pointer;font-size:17px}
+.aurora{border-radius:28px;padding:24px 20px;color:#fff;position:relative;overflow:hidden;background:linear-gradient(120deg,#FF8E6E 0%,#F26D9C 45%,#7367F0 100%)}
+.aurora::before,.aurora::after{content:'';position:absolute;border-radius:50%;filter:blur(30px);opacity:.5}
+.aurora::before{width:160px;height:160px;background:#FFD3A5;top:-50px;right:-40px}
+.aurora::after{width:140px;height:140px;background:#7367F0;bottom:-60px;left:-30px}
+.aurora .lbl{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
+.aurora .bal{font-family:'Fira Code';font-size:36px;font-weight:600;margin:8px 0 4px;letter-spacing:-1px}
+.aurora .due{font-size:12px;opacity:.9}
+.aurora .go{margin-top:16px;display:inline-flex;align-items:center;gap:8px;background:#fff;color:#7367F0;font-weight:900;font-size:13.5px;padding:12px 20px;border-radius:16px;border:none;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.pillrow{display:flex;gap:8px;margin-top:14px}
+.pill{flex:1;background:rgba(255,255,255,.22);border-radius:14px;padding:9px 6px;text-align:center;font-size:10.5px;font-weight:800}
+.pill b{display:block;font-family:'Fira Code';font-size:14px}
+.sec{margin:24px 2px 12px;font-weight:900;font-size:15px;display:flex;align-items:center;gap:8px}
+.sec:before{content:'';width:18px;height:5px;border-radius:99px;background:linear-gradient(90deg,#F26D9C,#7367F0)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qa{background:#fff;border-radius:var(--r);padding:15px;cursor:pointer;box-shadow:0 4px 18px rgba(45,42,74,.07);display:flex;gap:12px;align-items:center;min-height:64px}
+.qa .ic{width:38px;height:38px;border-radius:14px;padding:8px;flex:none}
+.qa b{font-size:13px;display:block}.qa small{font-size:10.5px;color:var(--muted)}
+.q1 .ic{background:#FFE8DE;color:#FF8E6E}.q2 .ic{background:#E4E0FD;color:#7367F0}.q3 .ic{background:#DFF7F0;color:#3ECFAF}.q4 .ic{background:#FDE1EC;color:#F26D9C}
+.list{background:#fff;border-radius:var(--r);box-shadow:0 4px 18px rgba(45,42,74,.07);overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid var(--line)}.li:last-child{border:none}
+.li .ic{width:38px;height:38px;border-radius:14px;padding:8px;background:#F3F1FD;color:#7367F0;flex:none}
+.li .t{flex:1}.li .t b{font-size:13.5px;display:block}.li .t small{color:var(--muted);font-size:11px}
+.tag{font-size:10px;font-weight:900;padding:4px 10px;border-radius:99px}
+.t-ok{background:#DFF7F0;color:#0FA47A}.t-w{background:#FFE8DE;color:#E56A3D}
+.bn{position:fixed;bottom:14px;left:14px;right:14px;max-width:402px;margin:auto;background:#fff;border-radius:22px;box-shadow:0 10px 34px rgba(45,42,74,.18);display:flex;justify-content:space-around;padding:9px}
+.bn button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:800;background:none;border:none;cursor:pointer;min-height:48px;min-width:56px;color:var(--muted)}
+.bn .on{color:var(--violet)}
+</style></head><body>
+<svg style="display:none"><symbol id="i-hist" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol><symbol id="i-mega" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol></svg>
+<div class="wrap">
+<div class="top"><div><b>Hai, Risyad!</b><span>XII RPL 3 - Absen 01</span></div><button class="tg" onclick="document.body.style.background=document.body.style.background.includes('2B2840')?'':'linear-gradient(180deg,#2B2840,#1B1930)';document.body.style.color=document.body.style.color?'':'#EDEBFF'">◐</button></div>
+<div class="aurora">
+<span class="lbl">Kas Minggu Ini - 17/23 Agu</span>
+<div class="bal">Rp 3.000</div>
+<div class="due">Jatuh tempo Senin, 23 Agu - 3 hari lagi</div>
+<button class="go">Bayar Sekarang →</button>
+<div class="pillrow"><div class="pill"><b>5/16</b>LUNAS</div><div class="pill"><b>Rp 33rb</b>TUNGGAKAN</div><div class="pill"><b>31%</b>PROGRES</div></div>
+</div>
+<div class="sec">Aksi Cepat</div>
+<div class="g2">
+<div class="qa q1"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div><b>Riwayat</b><small>transaksiku</small></div></div>
+<div class="qa q2"><svg class="ic" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><div><b>Transparansi</b><small>kas kelas</small></div></div>
+<div class="qa q3"><svg class="ic" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><b>Tunggakan</b><small class="amount">Rp 33.000</small></div></div>
+<div class="qa q4"><svg class="ic" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><div><b>Pengumuman</b><small>2 baru</small></div></div>
+</div>
+<div class="sec">Transaksi Terakhir</div>
+<div class="list">
+<div class="li"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div class="t"><b>Minggu 10-16 Aug</b><small>Transfer - 17 Aug</small></div><div style="text-align:right"><b class="amount">Rp 3.000</b><br><span class="tag t-ok">LUNAS</span></div></div>
+<div class="li"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div class="t"><b>Minggu 17-23 Aug</b><small>Transfer - 21 Aug</small></div><div style="text-align:right"><b class="amount">Rp 3.000</b><br><span class="tag t-w">MENUNGGU</span></div></div>
+</div>
+<div class="sec">Info Kelas</div>
+<div class="g2">
+<div class="qa q3"><svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></svg><div><b>Anggota</b><small>36 siswa</small></div></div>
+<div class="qa q4"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><div><b>Kalender</b><small>jatuh tempo</small></div></div>
+</div>
+</div>
+<nav class="bn"><button class="on">Home</button><button>Kas</button><button>Riwayat</button><button>Profil</button></nav>
+</body></html>

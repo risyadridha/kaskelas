@@ -1,0 +1,119 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V2 - Dashboard Siswa - KasKelas</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;800&family=Figtree:wght@400;600;700&family=Spline+Sans+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF1F6;--surface:#FFF;--ink:#16243F;--muted:#64748B;--navy:#16243F;--orange:#EA6A2A;--orange-soft:#FFEDE2;--mint:#0FA47A;--mint-soft:#E2F6EF;--red:#DC4C4C;--red-soft:#FDE8E8;--line:#E2E8F0;--r:18px}
+[data-theme=dark]{--bg:#0B1220;--surface:#151F33;--ink:#EAF0FA;--muted:#8CA0BF;--navy:#EAF0FA;--orange:#FF8A4C;--orange-soft:#3A2417;--mint:#2DD4A7;--mint-soft:#0E2B23;--red:#F87171;--red-soft:#3A1A1A;--line:#243350}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'Figtree',system-ui,sans-serif;font-size:15px;padding-bottom:90px}
+.wrap{max-width:430px;margin:0 auto;padding:18px 16px}
+.amount{font-family:'Spline Sans Mono',monospace;font-variant-numeric:tabular-nums}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.top b{font-family:'Sora';font-size:17px}
+.top span{display:block;font-size:11.5px;color:var(--muted)}
+.tbtn{width:42px;height:42px;border-radius:14px;border:none;background:var(--surface);box-shadow:0 2px 10px rgba(22,36,63,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+.ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* SIGNATURE: kartu fisik */
+.card{background:linear-gradient(135deg,#16243F,#1F3560);color:#fff;border-radius:22px;padding:20px;position:relative;overflow:hidden;box-shadow:0 14px 30px rgba(22,36,63,.35)}
+.card::before{content:'';position:absolute;inset:0;background:radial-gradient(120px 120px at 85% -10%,rgba(234,106,42,.55),transparent 60%)}
+.card .chip{width:38px;height:28px;border-radius:7px;background:linear-gradient(135deg,#FFD98A,#E8A94E);margin-bottom:14px;position:relative}
+.card .chip::after{content:'';position:absolute;inset:6px;border:1.5px solid rgba(22,36,63,.35);border-radius:4px}
+.card .dots{font-family:'Spline Sans Mono';letter-spacing:4px;font-size:14px;opacity:.75;margin-bottom:10px}
+.card .lbl{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.7;font-family:'Spline Sans Mono'}
+.card .val{font-family:'Spline Sans Mono';font-size:33px;font-weight:700;letter-spacing:-1px;margin:4px 0 2px}
+.card .row{display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px}
+.card .due{font-size:11.5px;opacity:.8}
+.card .brand{font-family:'Sora';font-weight:800;letter-spacing:.06em;opacity:.9}
+.card .cta{margin-top:16px;display:flex;gap:10px}
+.card .cta a{flex:1;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:13.5px;text-decoration:none}
+.cta .go{background:var(--orange);color:#fff}
+.cta .gh{background:rgba(255,255,255,.12);color:#fff}
+.badge{position:absolute;top:18px;right:18px;background:var(--orange);color:#fff;font-size:10px;font-weight:800;letter-spacing:.08em;padding:5px 11px;border-radius:99px}
+
+.sec{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 10px}
+.sec b{font-family:'Sora';font-size:14.5px}
+.sec a{font-size:12px;color:var(--orange);font-weight:700;text-decoration:none}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{border:none;border-radius:var(--r);padding:14px;cursor:pointer;text-align:left;min-height:74px;display:flex;flex-direction:column;justify-content:space-between}
+.tile .ic{width:21px;height:21px}
+.tile b{font-size:13px}
+.tile small{font-size:10.5px;opacity:.75}
+.t1{background:var(--orange-soft);color:#B34A16}.t1 .ic{color:var(--orange)}
+[data-theme=dark] .t1{color:#FFB98A}
+.t2{background:var(--mint-soft);color:#0B7A5C}.t2 .ic{color:var(--mint)}
+[data-theme=dark] .t2{color:#7FE8C8}
+.t3{background:#E8EDFB;color:#3B5BDB}.t3 .ic{color:#5C7CFA}
+[data-theme=dark] .t3{background:#1B2A52;color:#A5B8F5}
+.t4{background:#FBE8F1;color:#C2255C}.t4 .ic{color:#E64980}
+[data-theme=dark] .t4{background:#331722;color:#F7A8C6}
+
+.list{background:var(--surface);border-radius:var(--r);box-shadow:0 2px 12px rgba(22,36,63,.06);overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.li:last-child{border:none}
+.li .ic{width:38px;height:38px;border-radius:12px;padding:8px;background:var(--bg);color:var(--ink);flex:none}
+.li .t{flex:1}.li .t b{font-size:13.5px;display:block}.li .t small{color:var(--muted);font-size:11px}
+.tag{font-size:10px;font-weight:800;padding:3px 9px;border-radius:99px}
+.t-ok{background:var(--mint-soft);color:var(--mint)}.t-wait{background:var(--orange-soft);color:var(--orange)}
+.bn{position:fixed;bottom:0;left:0;right:0;background:var(--surface);box-shadow:0 -4px 20px rgba(22,36,63,.08);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom));border-radius:22px 22px 0 0;margin:auto;max-width:430px}
+.bn button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;background:none;border:none;cursor:pointer;min-height:48px;min-width:58px;justify-content:center;color:var(--ink);font-family:'Figtree'}
+.bn .active{color:var(--orange);font-weight:800}
+</style>
+</head>
+<body>
+<svg style="display:none"><symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol><symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></symbol><symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1z"/><path d="M8 7h8"/><path d="M8 11h8"/></symbol><symbol id="i-mega" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol><symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></symbol></svg>
+
+<div class="wrap">
+<div class="top">
+  <div><b>Halo, Risyad 👋</b><span>XII RPL 3 - Absen 01</span></div>
+  <button class="tbtn" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'':'dark'"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+</div>
+
+<!-- SIGNATURE: kartu kas -->
+<div class="card">
+  <span class="badge">BELUM BAYAR</span>
+  <div class="chip"></div>
+  <div class="dots">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;</div>
+  <span class="lbl">Kas Minggu Ini - 17/23 Agu</span>
+  <div class="val">Rp 3.000</div>
+  <div class="row"><span class="due">Jatuh tempo: Senin, 23 Agu</span><span class="brand">KASKELAS</span></div>
+  <div class="cta">
+    <a class="go" href="#"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>Bayar Sekarang</a>
+    <a class="gh" href="#"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Riwayat</a>
+  </div>
+</div>
+
+<div class="sec"><b>Menu Cepat</b><a href="#">lihat semua</a></div>
+<div class="tiles">
+  <button class="tile t1"><svg class="ic" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><b>Tunggakan</b><small class="amount">Rp 33.000</small></div></button>
+  <button class="tile t2"><svg class="ic" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><div><b>Transparansi</b><small>Kas kelas</small></div></button>
+  <button class="tile t3"><svg class="ic" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><div><b>Pengumuman</b><small>2 baru</small></div></button>
+  <button class="tile t4"><svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></svg><div><b>Anggota</b><small>36 siswa</small></div></button>
+</div>
+
+<div class="sec"><b>Transaksi Terakhir</b></div>
+<div class="list">
+  <div class="li"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div class="t"><b>Minggu 10-16 Aug</b><small>Transfer - 17 Aug</small></div><div style="text-align:right"><b class="amount">Rp 3.000</b><br><span class="tag t-ok">LUNAS</span></div></div>
+  <div class="li"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><div class="t"><b>Minggu 17-23 Aug</b><small>Transfer - 21 Aug</small></div><div style="text-align:right"><b class="amount">Rp 3.000</b><br><span class="tag t-wait">MENUNGGU</span></div></div>
+</div>
+
+<div class="sec"><b>Info Kelas</b></div>
+<div class="list">
+  <div class="li"><svg class="ic" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg><div class="t"><b>Pengeluaran Kelas</b><small>2 catatan bulan ini</small></div><span>→</span></div>
+  <div class="li"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><div class="t"><b>Kalender Kas</b><small>lihat jatuh tempo</small></div><span>→</span></div>
+</div>
+</div>
+
+<nav class="bn">
+  <button class="active"><svg class="ic" viewBox="0 0 24 24"><path d="M3 9.5 12 3l9 6.5V21H3z"/><path d="M9 21v-6h6v6"/></svg>Home</button>
+  <button><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>Kas</button>
+  <button><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Riwayat</button>
+  <button><svg class="ic" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profil</button>
+</nav>
+</body>
+</html>
