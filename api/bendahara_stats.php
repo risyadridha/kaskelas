@@ -123,15 +123,15 @@ if (!empty($studentIds) && !empty($periods)) {
 
 json_response([
     'class_id' => $classId,
-    'opening_balance' => $openingBalance,
-    'total_income' => $totalIncome,
-    'total_expense' => $totalExpense,
-    'saldo' => $saldo,
+    'opening_balance' => round($openingBalance, 2),
+    'total_income' => round($totalIncome, 2),
+    'total_expense' => round($totalExpense, 2),
+    'saldo' => round($saldo, 2),
     'pending_payments' => $txCounts['menunggu'],
     'approved_payments' => $txCounts['berhasil'],
     'rejected_payments' => $txCounts['ditolak'],
     'member_count' => $memberCount,
-    'total_arrears' => $totalArrearsAmount,
+    'total_arrears' => round($totalArrearsAmount, 2),
     'arrears_student_count' => $arrearsStudentCount
 ]);
 ?>

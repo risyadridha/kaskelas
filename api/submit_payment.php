@@ -99,7 +99,7 @@ try {
     // Tambah aktivitas
     $stmt = $pdo->prepare("
         INSERT INTO activities (user_id, type, description, icon)
-        VALUES (?, 'payment', ?, '💳')
+        VALUES (?, 'payment', ?, 'credit-card')
     ");
     $activityDesc = "Pembayaran untuk periode " . implode(', ', array_column($validPeriods, 'name')) . " dikirim";
     $stmt->execute([$userId, $activityDesc]);

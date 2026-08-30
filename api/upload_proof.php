@@ -24,8 +24,15 @@ if (!in_array($tx['status'], ['menunggu', 'ditolak'], true)) {
     json_response(['error' => 'Transaksi tidak dalam status yang dapat diupload bukti'], 400);
 }
 
-if (!isset($_FILES['proof']) || $_FILES['proof']['error'] !== UPLOAD_ERR_OK) {
+if (!isset($_FILES['proof'])) {
     json_response(['error' => 'File tidak ditemukan'], 400);
+}
+
+if ($_FILES['proof']['error'] !== UPLOAD_ERR_OK) {
+    if ($_FILES['proof']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['proof']['error'] === UPLOAD_ERR_FORM_SIZE) {
+        json_response(['error' => 'Ukuran file melebihi batas maksimal server (5MB)'], 400);
+    }
+    json_response(['error' => 'Gagal mengunggah file (kode error: ' . $_FILES['proof']['error'] . ')'], 400);
 }
 
 $file = $_FILES['proof'];
@@ -135,7 +142,7 @@ try {
     // Tambah aktivitas
     $stmt = $pdo->prepare("
         INSERT INTO activities (user_id, type, description, icon)
-        VALUES (?, 'upload_bukti', ?, '📤')
+        VALUES (?, 'upload_bukti', ?, 'upload')
     ");
     $stmt->execute([$userId, "Bukti pembayaran untuk transaksi #{$transactionId} diupload"]);
 

@@ -2,7 +2,8 @@
 // api/seed_periods.php
 // DEVELOPMENT ONLY - JANGAN DIAKSES DI PRODUCTION
 require 'config.php';
-if (!defined('ALLOW_SEED') || ALLOW_SEED !== true) {
+if (php_sapi_name() !== 'cli' && (!defined('ALLOW_SEED') || ALLOW_SEED !== true)) {
+    http_response_code(403);
     die('Akses ditolak');
 }
 // Tentukan user yang menjadi acuan

@@ -90,6 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($title) || empty($content)) {
         json_response(['error' => 'Judul dan isi wajib diisi'], 400);
     }
+    if (mb_strlen($title) > 255) {
+        json_response(['error' => 'Judul pengumuman maksimal 255 karakter'], 400);
+    }
 
     $validCategories = ['kas', 'kegiatan', 'informasi_kelas', 'penting'];
     $validPriorities = ['normal', 'important'];
@@ -132,6 +135,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 
     if (!$announcementId || empty($title) || empty($content)) {
         json_response(['error' => 'Judul dan isi wajib diisi'], 400);
+    }
+    if (mb_strlen($title) > 255) {
+        json_response(['error' => 'Judul pengumuman maksimal 255 karakter'], 400);
     }
 
     $validCategories = ['kas', 'kegiatan', 'informasi_kelas', 'penting'];

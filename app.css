@@ -32,6 +32,9 @@ button{font-family:inherit}
 .app-shell{min-height:100vh}
 .main-content{min-height:100vh}
 .container{max-width:560px;margin:0 auto;padding:4px 16px 32px}
+@media(max-width:899px){
+  .container{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+}
 @media(min-width:900px){
   .app-shell{display:flex;align-items:flex-start}
   .sidebar{display:flex;flex-direction:column;position:sticky;top:0;height:100vh;width:264px;flex:none}

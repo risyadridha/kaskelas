@@ -25,22 +25,10 @@ if (empty($username) || empty($password)) {
     json_response(['error' => 'Username dan password wajib diisi'], 400);
 }
 
-// Sederhana rate limiting berbasis session (maksimal 5 percobaan gagal per 5 menit)
 $ipKey = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-$now = time();
-if (!isset($_SESSION['login_attempts'])) {
-    $_SESSION['login_attempts'] = [];
-}
-$attempts = $_SESSION['login_attempts'][$ipKey] ?? ['count' => 0, 'first_attempt' => $now];
-if ($now - $attempts['first_attempt'] > 300) {
-    $attempts = ['count' => 0, 'first_attempt' => $now];
-}
-if ($attempts['count'] >= 5) {
-    json_response(['error' => 'Terlalu banyak percobaan login gagal. Silakan coba lagi dalam 5 menit.'], 429);
-}
 
-// Lapisan 2: rate limit persisten berbasis file (tidak bisa direset dengan hapus cookie)
-// 2a: per username+IP — cegah brute force satu akun
+// Rate limit persisten berbasis file (tidak bisa direset dengan hapus cookie)
+// 1: per username+IP — cegah brute force satu akun
 $throttleKey = md5(strtolower($username) . '|' . $ipKey);
 $throttle = login_throttle_check($throttleKey);
 if ($throttle['blocked']) {
@@ -96,7 +84,6 @@ if ($user && password_verify($password, $user['password_hash'])) {
         error_log('Gagal memperbarui last_login: ' . $e->getMessage());
     }
 
-    unset($_SESSION['login_attempts'][$ipKey]);
     login_throttle_reset($throttleKey);
     json_response([
         'success' => true,
@@ -109,8 +96,6 @@ if ($user && password_verify($password, $user['password_hash'])) {
         ]
     ]);
 } else {
-    $attempts['count']++;
-    $_SESSION['login_attempts'][$ipKey] = $attempts;
     login_throttle_fail($throttleKey);
     login_throttle_fail($ipThrottleKey, 600);
     json_response(['error' => 'Username atau password salah'], 401);

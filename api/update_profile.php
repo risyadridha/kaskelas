@@ -26,6 +26,19 @@ if (empty($phone) || !preg_match('/^[0-9]{10,15}$/', $phone)) {
 
 $userId = $_SESSION['user_id'];
 
+// Check email or phone uniqueness across other users (BUG4-03)
+$stmtCheck = $pdo->prepare("SELECT id, email, phone FROM users WHERE (email = ? OR phone = ?) AND id != ?");
+$stmtCheck->execute([$email, $phone, $userId]);
+$existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+if ($existing) {
+    if (strtolower($existing['email']) === strtolower($email)) {
+        json_response(['error' => 'Email sudah digunakan pengguna lain'], 400);
+    }
+    if ($existing['phone'] === $phone) {
+        json_response(['error' => 'Nomor HP sudah digunakan pengguna lain'], 400);
+    }
+}
+
 try {
     $stmt = $pdo->prepare("UPDATE users SET email = ?, phone = ? WHERE id = ?");
     $stmt->execute([$email, $phone, $userId]);
