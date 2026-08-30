@@ -52,6 +52,9 @@ if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
     json_response(['error' => 'Gagal menyimpan foto'], 500);
 }
 
+// Kompresi gambar jika perlu
+compress_uploaded_image($uploadPath, $mime);
+
 $photoPath = 'profiles/' . $fileName;
 
 // Fetch old photo to delete

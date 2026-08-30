@@ -167,6 +167,13 @@ body.as-bendahara .card{border-radius:16px}
 .quick-action-btn .qa-icon .ic{width:20px;height:20px}
 @media(min-width:700px){.quick-actions-grid{grid-template-columns:repeat(4,1fr)}}
 
+/* ---------- ICON GRID (for bendahara dashboard) ---------- */
+.qa-icon-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:420px){.qa-icon-grid{grid-template-columns:repeat(2,1fr)}}
+.qa-icon-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:92px;padding:14px 8px;border-radius:18px;border:none;background:var(--surface);box-shadow:var(--sh-sm);cursor:pointer;color:var(--ink);font-weight:800;font-size:11.5px;text-align:center;line-height:1.3}
+.qa-icon-btn:hover{transform:translateY(-2px);box-shadow:var(--sh)}
+.qa-icon-btn .qa-icon{width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--aurora-soft);color:var(--violet);flex:none}
+
 /* ---------- EMPTY STATE (ikon SVG via mask, tanpa emoji) ---------- */
 .empty-state{text-align:center;padding:44px 20px;color:var(--muted)}
 .empty-icon{display:inline-block;width:64px;height:64px;font-size:0;background:color-mix(in srgb,var(--violet) 14%,transparent);
@@ -209,6 +216,12 @@ textarea.form-input{min-height:88px;resize:vertical}
 select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B87A8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:17px;padding-right:38px}
 input[type="file"].form-input{padding:10px}
 
+.password-field{position:relative;display:flex;align-items:center}
+.password-field .form-input{padding-right:56px;width:100%}
+.password-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;padding:6px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:36px;min-width:36px;border-radius:10px;transition:color .15s, background .15s}
+.password-toggle:hover{color:var(--violet);background:color-mix(in srgb,var(--violet) 10%,transparent)}
+.password-toggle .ic{width:20px;height:20px}
+
 /* ---------- TIMELINE ---------- */
 .timeline{display:flex;flex-direction:column;gap:0}
 .timeline-item{display:flex;gap:13px;position:relative;padding-bottom:18px}
@@ -222,7 +235,7 @@ input[type="file"].form-input{padding:10px}
 .timeline-content{font-weight:700;font-size:13px}
 
 /* ---------- AVATAR ---------- */
-.avatar{display:flex;align-items:center;justify-content:center;background:var(--aurora);color:#fff;font-weight:900;font-family:'Sora',system-ui,sans-serif;border-radius:14px;width:42px;height:42px;flex:none}
+.avatar{display:flex;align-items:center;justify-content:center;background:var(--aurora);color:#fff;font-weight:900;font-family:'Sora',system-ui,sans-serif;border-radius:14px;width:42px;height:42px;flex:none;object-fit:cover}
 .avatar-lg{width:64px;height:64px;border-radius:20px;font-size:20px}
 .avatar-sm{width:34px;height:34px;border-radius:11px;font-size:12px}
 
@@ -283,7 +296,10 @@ input[type="file"].form-input{padding:10px}
 .bottom-nav .nav-item.active{background:var(--aurora);color:#fff;box-shadow:0 6px 16px rgba(115,103,240,.35)}
 .bottom-nav .nav-icon{width:auto;height:auto;background:none!important}
 .bottom-nav .nav-item.active .nav-icon{background:none}
-@media(max-width:899px){.sidebar{display:none}}
+@media(max-width:899px){
+  .sidebar{display:none}
+  .app-shell.is-authenticated .container{padding-bottom:100px}
+}
 
 /* ---------- KOMPATIBILITAS IKON LAMA (getIcon) ---------- */
 .svg-icon{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -295,3 +311,79 @@ input[type="file"].form-input{padding:10px}
 .upload-icon .ic{width:36px;height:36px;color:var(--violet)}
 .menu-icon .ic{width:19px;height:19px;color:var(--violet)}
 .btn .ic{width:17px;height:17px}
+
+/* ---------- CETAK LAPORAN (Print Styles) ---------- */
+@media print {
+    .top-header,
+    .sidebar,
+    .bottom-nav,
+    .offline-banner,
+    .toast-container,
+    .modal-overlay,
+    .bottom-sheet-overlay,
+    .bottom-sheet,
+    button:not(.print-btn),
+    .form-group:has(input[type="date"]),
+    .flex.gap-8:has(button) {
+        display: none !important;
+    }
+    .app-shell {
+        display: block !important;
+    }
+    .main-content {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    .card-header {
+        border-bottom: 1px solid #ccc;
+        margin-bottom: 8px;
+    }
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    th, td {
+        border: 1px solid #ccc !important;
+        padding: 6px 8px !important;
+        font-size: 11px !important;
+    }
+    th {
+        background: #f5f5f5 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .stat-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 12px !important;
+    }
+    .stat-card {
+        border: 1px solid #ccc !important;
+        padding: 12px !important;
+    }
+    .stat-value {
+        font-size: 16px !important;
+    }
+    .badge {
+        border: 1px solid currentColor !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .badge-success { background: #d4edda !important; color: #155724 !important; }
+    .badge-danger { background: #f8d7da !important; color: #721c24 !important; }
+    .badge-warning { background: #fff3cd !important; color: #856404 !important; }
+    .badge-neutral { background: #e2e3e5 !important; color: #383d41 !important; }
+    .badge-info { background: #d1ecf1 !important; color: #0c5460 !important; }
+    a { text-decoration: none !important; color: inherit !important; }
+}

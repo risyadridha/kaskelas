@@ -1,5 +1,7 @@
 <?php
 // api/config.php
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 $allowedOrigins = array_filter(array_map('trim', explode(',', getenv('KASKELAS_ALLOWED_ORIGINS') ?: '')));
 $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';

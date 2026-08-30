@@ -98,12 +98,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime = $finfo->file($file['tmp_name']);
-        $allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
+        $allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
         if (!in_array($mime, $allowedMime)) {
             json_response(['error' => 'Tipe file nota tidak diizinkan'], 400);
         }
         $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
+        $allowedExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
         if (!in_array($extension, $allowedExt)) {
             json_response(['error' => 'Ekstensi file nota tidak diizinkan'], 400);
         }
@@ -116,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
             json_response(['error' => 'Gagal menyimpan file nota'], 500);
         }
+        // Kompresi gambar jika perlu (PDF dilewati)
+        compress_uploaded_image($uploadPath, $mime);
         $receiptFile = 'receipts/' . $fileName;
     }
 

@@ -177,6 +177,19 @@ if ($method === 'PUT') {
         json_response(['error' => 'Forbidden: Tidak dapat mengubah akun non-siswa'], 403);
     }
 
+    // Reset password action
+    if (($data['action'] ?? '') === 'reset_password') {
+        $defaultPassHash = password_hash('siswa123', PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+        $stmt->execute([$defaultPassHash, $targetUserId]);
+
+        if (function_exists('log_audit')) {
+            log_audit($pdo, $userId, 'reset_password', 'users', $targetUserId, "Reset password siswa ID #{$targetUserId} ke default");
+        }
+
+        json_response(['success' => true, 'message' => 'Password berhasil direset ke siswa123']);
+    }
+
     $pdo->beginTransaction();
     try {
         $stmtUpdateUser = $pdo->prepare("

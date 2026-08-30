@@ -137,4 +137,73 @@ function login_throttle_reset($key) {
         login_throttle_write($data);
     }
 }
+
+/**
+ * Resize & kompres gambar (JPEG/PNG) di tempat (in-place) jika melebihi
+ * dimensi maksimum. File PDF dilewati (tidak diproses, dikembalikan apa
+ * adanya) karena bukan format gambar.
+ * @param string $filePath Path file yang sudah tersimpan di disk
+ * @param string $mimeType MIME type asli file (dari hasil finfo, bukan dari $_FILES)
+ * @param int $maxDimension Dimensi terpanjang maksimum dalam pixel (default 1280)
+ * @param int $jpegQuality Kualitas JPEG 0-100 (default 80)
+ * @return bool true jika berhasil diproses atau memang dilewati (PDF), false jika gagal
+ */
+function compress_uploaded_image($filePath, $mimeType, $maxDimension = 1280, $jpegQuality = 80) {
+    if (!extension_loaded('gd')) {
+        return true; // GD tidak tersedia di server ini, lewati saja, jangan sampai upload gagal karena ini
+    }
+    if ($mimeType === 'application/pdf') {
+        return true; // PDF tidak diproses
+    }
+
+    $imageInfo = @getimagesize($filePath);
+    if ($imageInfo === false) {
+        return false;
+    }
+    [$width, $height] = $imageInfo;
+
+    if ($width <= $maxDimension && $height <= $maxDimension) {
+        return true; // sudah cukup kecil, tidak perlu diproses
+    }
+
+    if ($mimeType === 'image/jpeg') {
+        $srcImage = @imagecreatefromjpeg($filePath);
+    } elseif ($mimeType === 'image/png') {
+        $srcImage = @imagecreatefrompng($filePath);
+    } elseif ($mimeType === 'image/webp') {
+        $srcImage = @imagecreatefromwebp($filePath);
+    } else {
+        return true; // tipe tidak dikenal, lewati saja jangan sampai merusak file
+    }
+
+    if (!$srcImage) {
+        return false;
+    }
+
+    $ratio = min($maxDimension / $width, $maxDimension / $height);
+    $newWidth = (int)round($width * $ratio);
+    $newHeight = (int)round($height * $ratio);
+
+    $dstImage = imagecreatetruecolor($newWidth, $newHeight);
+
+    if ($mimeType === 'image/png' || $mimeType === 'image/webp') {
+        imagealphablending($dstImage, false);
+        imagesavealpha($dstImage, true);
+    }
+
+    imagecopyresampled($dstImage, $srcImage, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+    if ($mimeType === 'image/jpeg') {
+        imagejpeg($dstImage, $filePath, $jpegQuality);
+    } elseif ($mimeType === 'image/png') {
+        imagepng($dstImage, $filePath, 6);
+    } elseif ($mimeType === 'image/webp') {
+        imagewebp($dstImage, $filePath, $jpegQuality);
+    }
+
+    imagedestroy($srcImage);
+    imagedestroy($dstImage);
+
+    return true;
+}
 ?>

@@ -39,14 +39,14 @@ if ($file['size'] > 5 * 1024 * 1024) {
 $finfo = new finfo(FILEINFO_MIME_TYPE);
 $mime = $finfo->file($file['tmp_name']);
 
-$allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
+$allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 if (!in_array($mime, $allowedMime)) {
     json_response(['error' => 'Tipe file tidak diizinkan'], 400);
 }
 
 // Validasi ekstensi file
 $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-$allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
+$allowedExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
 if (!in_array($extension, $allowedExt)) {
     json_response(['error' => 'Ekstensi file tidak diizinkan'], 400);
 }
@@ -74,6 +74,9 @@ $safeMime = $mime;
 if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
     json_response(['error' => 'Gagal menyimpan file'], 500);
 }
+
+// Kompresi gambar jika perlu (PDF dilewati)
+compress_uploaded_image($uploadPath, $safeMime);
 
 $pdo->beginTransaction();
 try {

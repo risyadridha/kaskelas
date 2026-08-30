@@ -27,6 +27,63 @@ if ($method === 'GET') {
     $stmt->execute([$classId]);
     $periods = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Auto-create reminder notifications for siswa (only for role='siswa')
+    if ($role === 'siswa') {
+        $today = date('Y-m-d');
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+        // Get user's payment_reminder setting
+        $stmtSet = $pdo->prepare("SELECT payment_reminder FROM user_settings WHERE user_id = ?");
+        $stmtSet->execute([$userId]);
+        $setting = $stmtSet->fetch(PDO::FETCH_ASSOC);
+        $reminderEnabled = $setting && (int)$setting['payment_reminder'] === 1;
+
+        if ($reminderEnabled) {
+            foreach ($periods as $period) {
+                $dueDate = $period['due_date'];
+                $periodId = $period['id'];
+
+                // Check if period is due tomorrow or already past due
+                if ($dueDate <= $tomorrow) {
+                    // Check if user already paid (berhasil or menunggu) for this period
+                    $stmtPaid = $pdo->prepare("
+                        SELECT 1 FROM transaction_items ti
+                        JOIN transactions t ON t.id = ti.transaction_id
+                        WHERE ti.period_id = ? AND t.user_id = ? AND t.status IN ('berhasil', 'menunggu')
+                        LIMIT 1
+                    ");
+                    $stmtPaid->execute([$periodId, $userId]);
+                    $alreadyPaid = $stmtPaid->fetch();
+
+                    if (!$alreadyPaid) {
+                        // Check if reminder notification already exists for this period
+                        $stmtNotif = $pdo->prepare("
+                            SELECT 1 FROM notifications
+                            WHERE user_id = ? AND type = 'reminder' AND reference_type = 'period' AND reference_id = ?
+                            LIMIT 1
+                        ");
+                        $stmtNotif->execute([$userId, $periodId]);
+                        $notifExists = $stmtNotif->fetch();
+
+                        if (!$notifExists) {
+                            $isOverdue = $dueDate < $today;
+                            $title = $isOverdue ? 'Kas Terlambat Dibayar' : 'Jatuh Tempo Kas Besok';
+                            $message = $isOverdue
+                                ? "Periode {$period['name']} sudah lewat jatuh tempo ({$dueDate}) dan belum dibayar."
+                                : "Jangan lupa bayar kas periode {$period['name']}, jatuh tempo besok ({$dueDate}).";
+
+                            $stmtIns = $pdo->prepare("
+                                INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
+                                VALUES (?, 'reminder', ?, ?, 'period', ?)
+                            ");
+                            $stmtIns->execute([$userId, $title, $message, $periodId]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     json_response(['periods' => $periods]);
 }
 

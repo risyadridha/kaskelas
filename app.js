@@ -110,6 +110,16 @@ function avatarFallback(imgEl){
     div.textContent = imgEl.dataset.fallbackInitials || '';
     imgEl.replaceWith(div);
 }
+
+function togglePasswordVisibility(inputId, btnEl) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    btnEl.innerHTML = isPassword ? ic('eye') : ic('eye-off');
+    btnEl.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+}
+
 function showToast(message, type='success'){ const container=document.getElementById('toastContainer'); const toast=document.createElement('div'); toast.className=`toast toast-${type}`; const icons={success:'i-checkc',error:'i-x',warning:'i-alert',info:'i-info'}; toast.innerHTML=`<svg class="ic"><use href="#${icons[type]||'i-info'}"/></svg><span>${escapeHtml(message)}</span>`; container.appendChild(toast); setTimeout(()=>{ toast.style.opacity='0'; toast.style.transform='translateY(-20px)'; toast.style.transition='all 0.3s ease'; setTimeout(()=>toast.remove(),300); },3000); }
 function showBottomSheet(content){ document.getElementById('bsOverlay').classList.add('open'); document.getElementById('bottomSheet').classList.add('open'); document.getElementById('bsContent').innerHTML=content; document.getElementById('bsOverlay').onclick=()=>closeBottomSheet(); }
 function closeBottomSheet(){ document.getElementById('bsOverlay').classList.remove('open'); document.getElementById('bottomSheet').classList.remove('open'); }
@@ -140,7 +150,8 @@ function normalizeTransaction(t) {
     }
 
     const createdStr = t.created_at || t.createdAt || new Date().toISOString();
-    const dateOnly = createdStr ? createdStr.split('T')[0] : new Date().toISOString().split('T')[0];
+    const effectiveDateStr = t.payment_date || t.paymentDate || createdStr;
+    const dateOnly = effectiveDateStr ? String(effectiveDateStr).split('T')[0] : new Date().toISOString().split('T')[0];
 
     return {
         id: t.id,
@@ -238,11 +249,19 @@ function getStatusLabel(status) {
 
 function getStatusBadgeClass(status) {
     switch(status) {
-        case 'lunas': return 'badge-success';
-        case 'menunggu': return 'badge-warning';
-        case 'ditolak': return 'badge-danger';
-        case 'terlambat': return 'badge-danger';
-        default: return 'badge-neutral';
+        case 'lunas':
+        case 'berhasil':
+            return 'badge-success';
+
+        case 'menunggu':
+            return 'badge-warning';
+
+        case 'ditolak':
+        case 'terlambat':
+            return 'badge-danger';
+
+        default:
+            return 'badge-neutral';
     }
 }
 
@@ -683,19 +702,47 @@ function updateNavUI() {
         item.classList.toggle('active', item.dataset.page === activeNav);
     });
     document.getElementById('bottomNav').style.display = isAuthenticated ? 'flex' : 'none';
-    // Tampilkan menu verifikasi hanya untuk bendahara di sidebar
-    const verifMenu = document.querySelector('[data-page="verifikasi"]');
-    if (verifMenu) {
-        verifMenu.style.display = (state.role === 'bendahara') ? 'flex' : 'none';
+    
+    const isBendahara = state.role === 'bendahara';
+    
+    // Sidebar: sembunyikan menu pribadi untuk bendahara
+    const hideForBendahara = ['kas-saya', 'pembayaran', 'tunggakan'];
+    hideForBendahara.forEach(page => {
+        const menu = document.querySelector(`[data-page="${page}"]`);
+        if (menu) menu.style.display = isBendahara ? 'none' : 'flex';
+    });
+    
+    // Sidebar: tampilkan menu khusus bendahara
+    const showForBendahara = ['verifikasi', 'kas-settings', 'laporan-masuk'];
+    showForBendahara.forEach(page => {
+        const menu = document.querySelector(`[data-page="${page}"]`);
+        if (menu) menu.style.display = isBendahara ? 'flex' : 'none';
+    });
+    
+    // Bottom nav mobile: untuk bendahara, ganti "Kas" dengan "Verifikasi"
+    const bottomNav = document.getElementById('bottomNav');
+    if (bottomNav) {
+        const kasBtn = bottomNav.querySelector('[data-page="kas-saya"]');
+        const verifikasiBtn = bottomNav.querySelector('[data-page="verifikasi"]');
+        if (kasBtn) {
+            if (isBendahara) {
+                // Ganti jadi tombol Verifikasi
+                kasBtn.dataset.page = 'verifikasi';
+                kasBtn.dataset.testid = 'mobile-nav-verifikasi';
+                kasBtn.innerHTML = `<span class="nav-icon"><svg class="ic"><use href="#i-checkc"/></svg></span>Verifikasi`;
+            } else {
+                // Kembalikan ke Kas
+                kasBtn.dataset.page = 'kas-saya';
+                kasBtn.dataset.testid = 'mobile-nav-kas';
+                kasBtn.innerHTML = `<span class="nav-icon"><svg class="ic"><use href="#i-wallet"/></svg></span>Kas`;
+            }
+        }
+        // Sembunyikan verifikasi asli di bottom nav jika ada (karena sudah diganti)
+        if (verifikasiBtn && verifikasiBtn !== kasBtn) {
+            verifikasiBtn.style.display = 'none';
+        }
     }
-    const kasMenu = document.querySelector('[data-page="kas-settings"]');
-    if (kasMenu) {
-        kasMenu.style.display = (state.role === 'bendahara') ? 'flex' : 'none';
-    }
-    const laporanMenu = document.querySelector('[data-page="laporan-masuk"]');
-    if (laporanMenu) {
-        laporanMenu.style.display = (state.role === 'bendahara') ? 'flex' : 'none';
-    }
+    
     updateNotifBadge();
 }
 
@@ -742,6 +789,7 @@ async function renderPage() {
         'anggota': renderAnggotaPage,
         'detail-anggota': renderDetailAnggotaPage,
         'transparansi': renderTransparansiPage,
+        'cetak-laporan': renderCetakLaporanPage,
         'pengeluaran': renderPengeluaranPage,
         'detail-pengeluaran': renderDetailPengeluaranPage,
         'pengumuman': renderPengumumanPage,
@@ -806,7 +854,7 @@ function renderLoginPage() {
             <section class="card login-card" aria-labelledby="loginTitle" data-testid="login-form">
                 <h2 id="loginTitle">Masuk</h2>
                 <div class="form-group"><label class="form-label" for="loginNis">NIS / Username</label><input type="text" class="form-input" id="loginNis" data-testid="login-username" autocomplete="username"></div>
-                <div class="form-group"><label class="form-label" for="loginPass">Password</label><input type="password" class="form-input" id="loginPass" data-testid="login-password" autocomplete="current-password"></div>
+                <div class="form-group"><label class="form-label" for="loginPass">Password</label><div class="password-field"><input type="password" class="form-input" id="loginPass" data-testid="login-password" autocomplete="current-password"><button type="button" class="password-toggle" onclick="togglePasswordVisibility('loginPass', this)" aria-label="Tampilkan password">${ic('eye')}</button></div></div>
                 <button class="btn btn-primary btn-block btn-lg" id="btnLogin" data-testid="login-submit" onclick="handleLogin()">Masuk</button>
             </section>
         </div>
@@ -847,7 +895,12 @@ async function handleLogin() {
 // ==================== DASHBOARD ====================
 async function renderHomePage() {
     
-    // Ambil hanya data penting untuk dashboard
+    // Dashboard khusus BENDAHARA
+    if (state.role === 'bendahara') {
+        return await renderBendaharaDashboard();
+    }
+    
+    // Ambil hanya data penting untuk dashboard (SISWA)
     if (state.periods.length === 0 || state.transactions.length === 0) {
         await loadDashboardData();
     }
@@ -856,110 +909,893 @@ async function renderHomePage() {
     const progress = calculateProgress(user.id);
     const unpaidPeriods = getUnpaidPeriods(user.id);
     const totalUnpaid = unpaidPeriods.reduce((sum, p) => sum + p.amount, 0);
-    const currentPeriod = state.periods.find(p => p.isCurrent) || state.periods[state.periods.length-1];
+    const currentPeriod = state.periods.find(p => p.isCurrent) || state.periods[state.periods.length - 1];
+
     if (!currentPeriod) {
-        return `<div class="container"><div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Belum ada periode</div><p class="empty-desc">Jalankan seed_periods.php untuk menambah periode.</p></div></div>`;
+        return `
+        <div class="container">
+            <div class="empty-state">
+                <div class="empty-icon">📅</div>
+                <div class="empty-title">Belum ada periode</div>
+                <p class="empty-desc">
+                    Jalankan seed_periods.php untuk menambah periode.
+                </p>
+            </div>
+        </div>`;
     }
+
     const currentStatus = getPeriodStatusForUser(currentPeriod.id, user.id);
     const dueDate = new Date(currentPeriod.dueDate);
     const now = new Date();
     const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
-    const recentTx = getUserTransactions(user.id).slice(-5).reverse();
-    const announcements = state.announcements.filter(a => !a.isRead).slice(0, 3);
+
+    const recentTx = getUserTransactions(user.id)
+        .slice(-5)
+        .reverse();
+
+    const announcements = state.announcements
+        .filter(a => !a.isRead)
+        .slice(0, 3);
+
     const unpaidCount = unpaidPeriods.length;
 
     let heroButton;
+
     if (currentStatus === 'lunas') {
-        heroButton = `<button class="btn btn-primary" onclick="navigateTo('kas-saya')">Lihat Detail</button>`;
+        heroButton = `
+            <button
+                class="btn btn-primary"
+                onclick="navigateTo('kas-saya')">
+                Lihat Detail
+            </button>`;
     } else if (currentStatus === 'menunggu') {
-        heroButton = `<button class="btn btn-primary" onclick="navigateTo('riwayat')">Lihat Status</button>`;
+        heroButton = `
+            <button
+                class="btn btn-primary"
+                onclick="navigateTo('riwayat')">
+                Lihat Status
+            </button>`;
     } else if (currentStatus === 'ditolak') {
-        heroButton = `<button class="btn btn-primary" onclick="navigateTo('upload-bukti')">Upload Ulang</button>`;
+        heroButton = `
+            <button
+                class="btn btn-primary"
+                onclick="navigateTo('upload-bukti')">
+                Upload Ulang
+            </button>`;
     } else {
-        heroButton = `<button class="btn btn-primary" onclick="navigateTo('pembayaran')">Bayar Sekarang</button>`;
+        heroButton = `
+            <button
+                class="btn btn-primary"
+                onclick="navigateTo('pembayaran')">
+                Bayar Sekarang
+            </button>`;
     }
 
     return `
     ${renderHeader('Dashboard')}
+
     <div class="container">
+
+        <!-- HEADER USER -->
         <div class="flex items-center gap-12 mb-16">
             ${getAvatarHtml(user, 'avatar-lg')}
+
             <div>
-                <h2 style="font-size:20px;font-weight:800;">Selamat pagi, ${escapeHtml(user.name || user.username)} 👋</h2>
-                <p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(user.kelas || 'Kelas')} • ${user.absenNumber ? 'Absen '+escapeHtml(user.absenNumber) : escapeHtml(user.role || 'Siswa')}</p>
+                <h2 style="font-size:20px;font-weight:800;">
+                    Selamat pagi, ${escapeHtml(user.name || user.username)} 👋
+                </h2>
+
+                <p style="font-size:13px;color:var(--text-secondary);">
+                    ${escapeHtml(user.kelas || 'Kelas')}
+                    •
+                    ${
+                        user.absenNumber
+                            ? 'Absen ' + escapeHtml(user.absenNumber)
+                            : escapeHtml(user.role || 'Siswa')
+                    }
+                </p>
             </div>
         </div>
 
+
+        <!-- HERO KAS -->
         <div class="card hero-card mb-16">
+
             <div class="flex items-center justify-between">
+
                 <div>
-                    <p style="font-size:12px;font-weight:600;opacity:0.9;">KAS ${currentPeriod.frequency === 'weekly' ? 'MINGGU INI' : 'BULAN INI'}</p>
-                    <p style="font-size:28px;font-weight:800;margin:4px 0;">${formatRupiah(currentPeriod.amount)}</p>
-                    <span class="badge" style="background:rgba(255,255,255,0.2);color:#fff;">${getStatusLabel(currentStatus)}</span>
+                    <p style="font-size:12px;font-weight:600;opacity:0.9;">
+                        KAS ${
+                            currentPeriod.frequency === 'weekly'
+                                ? 'MINGGU INI'
+                                : 'BULAN INI'
+                        }
+                    </p>
+
+                    <p style="font-size:28px;font-weight:800;margin:4px 0;">
+                        ${formatRupiah(currentPeriod.amount)}
+                    </p>
+
+                    <span
+                        class="badge"
+                        style="background:rgba(255,255,255,0.2);color:#fff;">
+                        ${getStatusLabel(currentStatus)}
+                    </span>
                 </div>
+
                 ${heroButton}
+
             </div>
-            <p style="font-size:12px;opacity:0.9;margin-top:8px;">Periode: ${escapeHtml(currentPeriod.label)}</p>
-            <p style="font-size:12px;opacity:0.9;">Jatuh tempo: ${formatDate(currentPeriod.dueDate)} (${diffDays>=0?diffDays+' hari lagi':'Terlambat '+Math.abs(diffDays)+' hari'})</p>
-            <div class="progress-bar mt-16" style="background:rgba(255,255,255,0.2);">
-                <div class="progress-fill" style="width:${progress.rate}%;"></div>
+
+            <p style="font-size:12px;opacity:0.9;margin-top:8px;">
+                Periode: ${escapeHtml(currentPeriod.label)}
+            </p>
+
+            <p style="font-size:12px;opacity:0.9;">
+                Jatuh tempo:
+                ${formatDate(currentPeriod.dueDate)}
+                ${
+                    diffDays >= 0
+                        ? `(${diffDays} hari lagi)`
+                        : `(Terlambat ${Math.abs(diffDays)} hari)`
+                }
+            </p>
+
+            <div
+                class="progress-bar mt-16"
+                style="background:rgba(255,255,255,0.2);">
+
+                <div
+                    class="progress-fill"
+                    style="width:${progress.rate}%;">
+                </div>
+
             </div>
-            <p style="font-size:11px;margin-top:4px;">${progress.lunasCount} dari ${progress.totalPeriods} periode lunas</p>
+
+            <p style="font-size:11px;margin-top:4px;">
+                ${progress.lunasCount}
+                dari
+                ${progress.totalPeriods}
+                periode lunas
+            </p>
+
         </div>
 
+
+        <!-- STATISTIK -->
         <div class="stat-grid mb-16">
-            <div class="stat-card"><div class="stat-value">${formatRupiah(state.periods.filter(p => getPeriodStatusForUser(p.id, user.id) === 'lunas').reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0))}</div><div class="stat-label">Total Dibayar</div></div>
-            <div class="stat-card"><div class="stat-value" style="color:${totalUnpaid>0?'var(--danger)':'var(--success)'};">${formatRupiah(totalUnpaid)}</div><div class="stat-label">Tunggakan</div></div>
-            <div class="stat-card"><div class="stat-value">${progress.lunasCount}</div><div class="stat-label">Periode Lunas</div></div>
-            <div class="stat-card"><div class="stat-value">${progress.rate}%</div><div class="stat-label">Progress</div></div>
-        </div>
 
-        <div class="card mb-16">
-            <div class="card-header"><span class="card-title">Aksi Cepat</span></div>
-            <div class="quick-actions-grid">
-                <button class="quick-action-btn" onclick="navigateTo('pembayaran')"><span class="qa-icon">${getIcon('credit-card')}</span>Bayar Kas</button>
-                <button class="quick-action-btn" onclick="navigateTo('tunggakan')"><span class="qa-icon">${getIcon('alert')}</span>Tunggakan</button>
-                <button class="quick-action-btn" onclick="navigateTo('riwayat')"><span class="qa-icon">${getIcon('history')}</span>Riwayat</button>
-                <button class="quick-action-btn" onclick="navigateTo('transparansi')"><span class="qa-icon">${getIcon('bar-chart')}</span>Transparansi</button>
+            <div class="stat-card">
+                <div class="stat-value">
+                    ${formatRupiah(
+                        state.periods
+                            .filter(
+                                p =>
+                                    getPeriodStatusForUser(
+                                        p.id,
+                                        user.id
+                                    ) === 'lunas'
+                            )
+                            .reduce(
+                                (sum, p) =>
+                                    sum +
+                                    (parseFloat(p.amount) || 0),
+                                0
+                            )
+                    )}
+                </div>
+
+                <div class="stat-label">
+                    Total Dibayar
+                </div>
             </div>
-        </div>
 
-        <div class="card mb-16">
-            <div class="card-header"><span class="card-title">Fitur Kelas</span></div>
-            <div class="quick-actions-grid">
-                <button class="quick-action-btn" onclick="navigateTo('pengeluaran')"><span class="qa-icon">${getIcon('receipt')}</span>Pengeluaran</button>
-                <button class="quick-action-btn" onclick="navigateTo('pengumuman')"><span class="qa-icon">${getIcon('megaphone')}</span>Pengumuman</button>
-                <button class="quick-action-btn" onclick="navigateTo('kalender')"><span class="qa-icon">${getIcon('history')}</span>Kalender</button>
-                <button class="quick-action-btn" onclick="navigateTo('anggota')"><span class="qa-icon">${getIcon('users')}</span>Anggota</button>
+
+            <div class="stat-card">
+
+                <div
+                    class="stat-value"
+                    style="color:${
+                        totalUnpaid > 0
+                            ? 'var(--danger)'
+                            : 'var(--success)'
+                    };">
+                    ${formatRupiah(totalUnpaid)}
+                </div>
+
+                <div class="stat-label">
+                    Tunggakan
+                </div>
+
             </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-value">
+                    ${progress.lunasCount}
+                </div>
+
+                <div class="stat-label">
+                    Periode Lunas
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-value">
+                    ${progress.rate}%
+                </div>
+
+                <div class="stat-label">
+                    Progress
+                </div>
+
+            </div>
+
         </div>
 
+
+        <!-- AKSI CEPAT -->
         <div class="card mb-16">
+
             <div class="card-header">
-                <span class="card-title">Transaksi Terbaru</span>
-                <button style="font-size:12px;color:var(--primary);" onclick="navigateTo('riwayat')">Lihat Semua →</button>
+                <span class="card-title">
+                    Aksi Cepat
+                </span>
             </div>
-            ${recentTx.length===0?'<p style="font-size:13px;color:var(--text-muted);">Belum ada transaksi.</p>':recentTx.map(tx=>`
-                <div class="list-item" onclick="navigateTo('detail-transaksi',{id:'${tx.id}'})">
-                    ${ic('i-card')}
-                    <div class="item-info"><div class="item-title">${escapeHtml(tx.periodLabel || tx.period_label || 'Periode')}</div><div class="item-subtitle">${formatShortDate(tx.date)} • ${tx.method.toUpperCase()}</div></div>
-                    <span class="badge ${getStatusBadgeClass(tx.status)}">${getStatusLabel(tx.status)}</span>
-                </div>`).join('')}
+
+            <div class="quick-actions-grid">
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('pembayaran')">
+                    <span class="qa-icon">
+                        ${getIcon('credit-card')}
+                    </span>
+                    Bayar Kas
+                </button>
+
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('tunggakan')">
+                    <span class="qa-icon">
+                        ${getIcon('alert')}
+                    </span>
+                    Tunggakan
+                </button>
+
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('riwayat')">
+                    <span class="qa-icon">
+                        ${getIcon('history')}
+                    </span>
+                    Riwayat
+                </button>
+
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('transparansi')">
+                    <span class="qa-icon">
+                        ${getIcon('bar-chart')}
+                    </span>
+                    Transparansi
+                </button>
+
+            </div>
+
         </div>
 
+
+        <!-- FITUR KELAS -->
+        <div class="card mb-16">
+
+            <div class="card-header">
+                <span class="card-title">
+                    Fitur Kelas
+                </span>
+            </div>
+
+            <div class="quick-actions-grid">
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('pengeluaran')">
+                    <span class="qa-icon">
+                        ${getIcon('receipt')}
+                    </span>
+                    Pengeluaran
+                </button>
+
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('pengumuman')">
+                    <span class="qa-icon">
+                        ${getIcon('megaphone')}
+                    </span>
+                    Pengumuman
+                </button>
+
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('kalender')">
+                    <span class="qa-icon">
+                        ${getIcon('history')}
+                    </span>
+                    Kalender
+                </button>
+
+
+                <button
+                    class="quick-action-btn"
+                    onclick="navigateTo('anggota')">
+                    <span class="qa-icon">
+                        ${getIcon('users')}
+                    </span>
+                    Anggota
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- TRANSAKSI TERBARU -->
+        <!-- ================================================= -->
+        <div class="card mb-16">
+
+            <div class="card-header">
+
+                <span class="card-title">
+                    Transaksi Terbaru
+                </span>
+
+                <button
+                    style="font-size:12px;color:var(--primary);"
+                    onclick="navigateTo('riwayat')">
+                    Lihat Semua →
+                </button>
+
+            </div>
+
+
+            ${
+                recentTx.length === 0
+                    ? `
+                    <p
+                        style="
+                            font-size:13px;
+                            color:var(--text-muted);
+                        ">
+                        Belum ada transaksi.
+                    </p>
+                    `
+                    : recentTx
+                        .map(
+                            tx => `
+                            <div
+                                class="list-item"
+                                onclick="navigateTo(
+                                    'detail-transaksi',
+                                    {id:'${tx.id}'}
+                                )">
+
+                                <!-- ICON UANG -->
+                                ${ic('cash')}
+
+                                <div class="item-info">
+
+                                    <div class="item-title">
+                                        ${escapeHtml(
+                                            tx.periodLabel ||
+                                            tx.period_label ||
+                                            'Periode'
+                                        )}
+                                    </div>
+
+                                    <div class="item-subtitle">
+                                        ${formatShortDate(tx.date)}
+                                        •
+                                        ${tx.method.toUpperCase()}
+                                    </div>
+
+                                </div>
+
+                                <span
+                                    class="badge ${
+                                        getStatusBadgeClass(
+                                            tx.status
+                                        )
+                                    }">
+
+                                    ${getStatusLabel(tx.status)}
+
+                                </span>
+
+                            </div>
+                            `
+                        )
+                        .join('')
+            }
+
+        </div>
+
+
+        <!-- ================================================= -->
+        <!-- PENGUMUMAN -->
+        <!-- ================================================= -->
         <div class="card">
+
             <div class="card-header">
-                <span class="card-title">${ic('i-mega')} Pengumuman</span>
-                <button style="font-size:12px;color:var(--primary);" onclick="navigateTo('pengumuman')">Lihat Semua →</button>
+
+                <span class="card-title">
+                    ${ic('i-mega')} Pengumuman
+                </span>
+
+                <button
+                    style="font-size:12px;color:var(--primary);"
+                    onclick="navigateTo('pengumuman')">
+                    Lihat Semua →
+                </button>
+
             </div>
-        ${announcements.length===0?'<p style="font-size:13px;color:var(--text-muted);">Tidak ada pengumuman baru.</p>':announcements.map(a=>`
-                <div class="list-item" onclick="navigateTo('detail-pengumuman',{id:${a.id}})" style="${a.isImportant?'border-left:3px solid var(--danger);':''}">
-                    <span>${ic('i-mega')}</span>
-                    <div class="item-info"><div class="item-title">${escapeHtml(a.title)}</div><div class="item-subtitle">${formatShortDate(a.date)} • ${escapeHtml(a.category)}</div></div>
-                </div>`).join('')}
+
+
+            ${
+                announcements.length === 0
+                    ? `
+                    <p
+                        style="
+                            font-size:13px;
+                            color:var(--text-muted);
+                        ">
+                        Tidak ada pengumuman baru.
+                    </p>
+                    `
+                    : announcements
+                        .map(
+                            a => `
+                            <div
+                                class="list-item"
+                                onclick="navigateTo(
+                                    'detail-pengumuman',
+                                    {id:${a.id}}
+                                )"
+                                style="${
+                                    a.isImportant
+                                        ? 'border-left:3px solid var(--danger);'
+                                        : ''
+                                }">
+
+                                <span>
+                                    ${ic('i-mega')}
+                                </span>
+
+                                <div class="item-info">
+
+                                    <div class="item-title">
+                                        ${escapeHtml(a.title)}
+                                    </div>
+
+                                    <div class="item-subtitle">
+                                        ${formatShortDate(a.date)}
+                                        •
+                                        ${escapeHtml(a.category)}
+                                    </div>
+
+                                </div>
+
+                            </div>
+                            `
+                        )
+                        .join('')
+            }
+
         </div>
 
-        ${unpaidCount>0?`<div class="card mt-16" style="background:var(--warning-bg);border:1px solid var(--warning);"><p style="font-size:13px;font-weight:600;color:var(--warning);">Anda memiliki ${unpaidCount} periode tunggakan.</p><button class="btn btn-outline btn-sm mt-8" onclick="navigateTo('tunggakan')">Lihat Tunggakan</button></div>`:''}
+
+        <!-- TUNGGAKAN -->
+        ${
+            unpaidCount > 0
+                ? `
+                <div
+                    class="card mt-16"
+                    style="
+                        background:var(--warning-bg);
+                        border:1px solid var(--warning);
+                    ">
+
+                    <p
+                        style="
+                            font-size:13px;
+                            font-weight:600;
+                            color:var(--warning);
+                        ">
+                        Anda memiliki
+                        ${unpaidCount}
+                        periode tunggakan.
+                    </p>
+
+                    <button
+                        class="btn btn-outline btn-sm mt-8"
+                        onclick="navigateTo('tunggakan')">
+                        Lihat Tunggakan
+                    </button>
+
+                </div>
+                `
+                : ''
+        }
+
+    </div>`;
+}
+
+// Dashboard khusus BENDAHARA
+async function renderBendaharaDashboard() {
+    // Ambil data statistik dari endpoint bendahara_stats
+    let stats;
+
+    try {
+        const res = await apiFetch('bendahara_stats.php');
+        if (res) stats = res;
+    } catch (e) {
+        console.warn('Gagal memuat statistik bendahara:', e);
+    }
+
+    if (!stats) {
+        return `${renderHeader('Dashboard')} 
+        <div class="container">
+            <div class="empty-state">
+                <div class="empty-icon">⚠️</div>
+                <div class="empty-title">Gagal memuat data dashboard</div>
+                <button class="btn btn-outline mt-16" onclick="renderPage()">Coba Lagi</button>
+            </div>
+        </div>`;
+    }
+
+    const {
+        saldo,
+        total_income,
+        total_expense,
+        pending_payments,
+        member_count,
+        total_arrears,
+        arrears_student_count
+    } = stats;
+
+    // Hitung data chart untuk grafik tren kas (6 bulan terakhir)
+    const chartMonths = 6;
+    const now = new Date();
+
+    const chartLabels = [];
+    const chartIncomeData = [];
+    const chartExpenseData = [];
+
+    for (let i = chartMonths - 1; i >= 0; i--) {
+        const d = new Date(
+            now.getFullYear(),
+            now.getMonth() - i,
+            1
+        );
+
+        const year = d.getFullYear();
+        const month = d.getMonth();
+
+        chartLabels.push(
+            shortMonths[month] + ' ' + year
+        );
+
+        // ==========================
+        // DATA PEMASUKAN
+        // ==========================
+        let incomeSum = 0;
+
+        state.transactions.forEach(t => {
+            if (t.status === 'berhasil' && t.date) {
+                const txDate = new Date(t.date);
+
+                if (
+                    txDate.getFullYear() === year &&
+                    txDate.getMonth() === month
+                ) {
+                    incomeSum += (t.amount || 0);
+                }
+            }
+        });
+
+        chartIncomeData.push(incomeSum);
+
+        // ==========================
+        // DATA PENGELUARAN
+        // ==========================
+        let expenseSum = 0;
+
+        state.expenses.forEach(e => {
+            if (e.date) {
+                const expDate = new Date(e.date);
+
+                if (
+                    expDate.getFullYear() === year &&
+                    expDate.getMonth() === month
+                ) {
+                    expenseSum += (e.amount || 0);
+                }
+            }
+        });
+
+        chartExpenseData.push(expenseSum);
+    }
+
+    // =====================================================
+    // PENTING:
+    // Jadwalkan render chart SEBELUM return.
+    // =====================================================
+    setTimeout(() => {
+        renderTrenKasChart(
+            chartLabels,
+            chartIncomeData,
+            chartExpenseData
+        );
+    }, 0);
+
+    // =====================================================
+    // HTML DASHBOARD BENDAHARA
+    // =====================================================
+    return `
+    ${renderHeader('Dashboard')}
+
+    <div class="container">
+
+        <!-- HEADER USER -->
+        <div class="flex items-center gap-12 mb-16">
+            ${getAvatarHtml(getCurrentUser(), 'avatar-lg')}
+
+            <div>
+                <h2 style="font-size:20px;font-weight:800;">
+                    Selamat pagi, ${escapeHtml(
+                        state.currentUserData?.name || 'Bendahara'
+                    )} 👋
+                </h2>
+
+                <p style="font-size:13px;color:var(--text-secondary);">
+                    ${escapeHtml(
+                        state.currentUserData?.kelas || 'Kelas'
+                    )} • Bendahara
+                </p>
+            </div>
+        </div>
+
+        <!-- ================================================= -->
+        <!-- CHART TREN KAS -->
+        <!-- ================================================= -->
+        <div class="card mb-16">
+
+            <div class="card-header">
+                <span class="card-title">
+                    Tren Kas 6 Bulan Terakhir
+                </span>
+            </div>
+
+            <div style="height:280px;position:relative;">
+                <canvas id="trenKasChart"></canvas>
+            </div>
+
+        </div>
+
+        <!-- ================================================= -->
+        <!-- STATISTIK -->
+        <!-- ================================================= -->
+        <div class="stat-grid mb-16">
+
+            <!-- SALDO -->
+            <div class="stat-card">
+                <div
+                    class="stat-value"
+                    style="color:var(--primary);"
+                >
+                    ${formatRupiah(saldo)}
+                </div>
+
+                <div class="stat-label">
+                    Saldo Kas Kelas
+                </div>
+            </div>
+
+            <!-- MENUNGGU VERIFIKASI -->
+            <div class="stat-card">
+                <div
+                    class="stat-value"
+                    style="color:var(--warning);"
+                >
+                    ${pending_payments}
+                </div>
+
+                <div class="stat-label">
+                    Menunggu Verifikasi
+                </div>
+            </div>
+
+            <!-- JUMLAH ANGGOTA -->
+            <div class="stat-card">
+                <div class="stat-value">
+                    ${member_count}
+                </div>
+
+                <div class="stat-label">
+                    Jumlah Anggota
+                </div>
+            </div>
+
+            <!-- TUNGGAKAN -->
+            <div class="stat-card">
+                <div
+                    class="stat-value"
+                    style="color:var(--danger);"
+                >
+                    ${formatRupiah(total_arrears)}
+                </div>
+
+                <div class="stat-label">
+                    Total Tunggakan
+                </div>
+            </div>
+
+            <!-- PEMASUKAN -->
+            <div class="stat-card">
+                <div
+                    class="stat-value"
+                    style="color:var(--success);"
+                >
+                    ${formatRupiah(total_income)}
+                </div>
+
+                <div class="stat-label">
+                    Total Pemasukan
+                </div>
+            </div>
+
+            <!-- PENGELUARAN -->
+            <div class="stat-card">
+                <div
+                    class="stat-value"
+                    style="color:var(--danger);"
+                >
+                    ${formatRupiah(total_expense)}
+                </div>
+
+                <div class="stat-label">
+                    Total Pengeluaran
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ================================================= -->
+        <!-- AKSES CEPAT -->
+        <!-- ================================================= -->
+        <div class="card mb-16">
+
+            <div class="card-header">
+                <span class="card-title">
+                    Akses Cepat ke Fitur Manajemen
+                </span>
+            </div>
+
+            <div class="qa-icon-grid">
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('verifikasi')"
+                >
+                    <span class="qa-icon">
+                        ${ic('checkc')}
+                    </span>
+                    Verifikasi Pembayaran
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('anggota')"
+                >
+                    <span class="qa-icon">
+                        ${ic('users')}
+                    </span>
+                    Kelola Anggota
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('pengeluaran')"
+                >
+                    <span class="qa-icon">
+                        ${ic('receipt')}
+                    </span>
+                    Kelola Pengeluaran
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('pengumuman')"
+                >
+                    <span class="qa-icon">
+                        ${ic('mega')}
+                    </span>
+                    Buat Pengumuman
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('cetak-laporan')"
+                >
+                    <span class="qa-icon">
+                        ${ic('upload')}
+                    </span>
+                    Cetak / Ekspor Laporan
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('kas-settings')"
+                >
+                    <span class="qa-icon">
+                        ${ic('gear')}
+                    </span>
+                    Pengaturan Kas
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('laporan-masuk')"
+                >
+                    <span class="qa-icon">
+                        ${ic('doc')}
+                    </span>
+                    Laporan Masuk
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('riwayat')"
+                >
+                    <span class="qa-icon">
+                        ${ic('history')}
+                    </span>
+                    Riwayat
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('transparansi')"
+                >
+                    <span class="qa-icon">
+                        ${ic('chart')}
+                    </span>
+                    Transparansi
+                </button>
+
+                <button
+                    class="qa-icon-btn"
+                    onclick="navigateTo('notifikasi')"
+                >
+                    <span class="qa-icon">
+                        ${ic('bell')}
+                    </span>
+                    Notifikasi
+                </button>
+
+            </div>
+
+        </div>
+
     </div>`;
 }
 
@@ -1394,7 +2230,13 @@ function renderAnggotaPage() {
     return `
     ${renderHeader('Anggota Kelas', true)}
     <div class="container">
-        ${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>`:''}
+        ${state.role==='bendahara'?`
+            <div class="flex gap-8 mb-16">
+                <button class="btn btn-primary flex-1" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>
+                <button class="btn btn-outline flex-1" onclick="showImportCsvModal()">${getIcon('upload')} Import CSV</button>
+            </div>
+            <a href="template_siswa.csv" download class="btn btn-sm btn-outline mb-16" style="width:100%;text-align:center;">${getIcon('download')} Download Template CSV</a>
+        `:''}
         <div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
         <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
@@ -1407,8 +2249,85 @@ function renderDetailAnggotaPage() {
     const memberId = state.pageParams.id;
     const member = state.students.find(s => s.id == memberId);
     if (!member) return `${renderHeader('Detail Anggota', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Anggota tidak ditemukan</div></div></div>`;
-    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button></div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?ic('i-checkc'):st==='menunggu'?ic('i-clock'):ic('i-alert')}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
+    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button><button class="btn btn-warning flex-1" onclick="confirmResetPassword(${member.id}, '${escapeHtml(member.name)}')">Reset Password</button></div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?ic('i-checkc'):st==='menunggu'?ic('i-clock'):ic('i-alert')}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
 }
+
+// Fungsi terpisah untuk render chart tren kas (bisa dipakai di Transparansi & Dashboard Bendahara)
+function renderTrenKasChart(chartLabels, chartIncomeData, chartExpenseData) {
+    const ctx = document.getElementById('trenKasChart');
+    if (ctx) {
+        // Destroy previous instance
+        if (window.trenKasChartInstance) {
+            window.trenKasChartInstance.destroy();
+        }
+        window.trenKasChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartLabels,
+                datasets: [
+                    {
+                        label: 'Pemasukan',
+                        data: chartIncomeData,
+                        backgroundColor: 'rgba(62, 207, 175, 0.8)',
+                        borderColor: 'rgba(62, 207, 175, 1)',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        borderSkipped: false
+                    },
+                    {
+                        label: 'Pengeluaran',
+                        data: chartExpenseData,
+                        backgroundColor: 'rgba(242, 109, 156, 0.8)',
+                        borderColor: 'rgba(242, 109, 156, 1)',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 16,
+                            font: { family: "'Nunito', sans-serif", size: 12, weight: '700' }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatRupiah(context.raw);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatRupiah(value);
+                            },
+                            font: { family: "'Fira Code', monospace", size: 11 }
+                        },
+                        grid: {
+                            color: 'rgba(45,42,74,0.08)'
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: "'Nunito', sans-serif", size: 11, weight: '700' } }
+}
+                }
+            }
+        });
+        }
+    }
 
 // ==================== TRANSPARANSI ====================
 async function renderTransparansiPage() {
@@ -1432,9 +2351,82 @@ async function renderTransparansiPage() {
     const monthIncome = monthlyData[selectedMonth] || 0;
     const monthExpense = expenseMonthly[selectedMonth] || 0;
     const years = Array.isArray(d.years) && d.years.length ? d.years.map(Number) : [state.transparansiYear];
+
+    // --- Chart.js: Tren 6 bulan terakhir (pemasukan vs pengeluaran) ---
+    // Hitung dari state.transactions (status=berhasil) dan state.expenses
+    const chartMonths = 6;
+    const now = new Date();
+    const chartLabels = [];
+    const chartIncomeData = [];
+    const chartExpenseData = [];
+
+    for (let i = chartMonths - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth(); // 0-11
+        chartLabels.push(shortMonths[month] + ' ' + year);
+
+        // Pemasukan: transaksi status=berhasil di bulan ini
+        let incomeSum = 0;
+        state.transactions.forEach(t => {
+            if (t.status === 'berhasil' && t.date) {
+                const txDate = new Date(t.date);
+                if (txDate.getFullYear() === year && txDate.getMonth() === month) {
+                    incomeSum += (t.amount || 0);
+                }
+            }
+        });
+        chartIncomeData.push(incomeSum);
+
+        // Pengeluaran: expense di bulan ini
+        let expenseSum = 0;
+        state.expenses.forEach(e => {
+            if (e.date) {
+                const expDate = new Date(e.date);
+                if (expDate.getFullYear() === year && expDate.getMonth() === month) {
+                    expenseSum += (e.amount || 0);
+                }
+            }
+        });
+        chartExpenseData.push(expenseSum);
+    }
+
+    // Render chart setelah DOM siap (pakai setTimeout 0)
+    setTimeout(() => renderTrenKasChart(chartLabels, chartIncomeData, chartExpenseData), 0);
+
+    // Fetch leaderboard data (async, render via setTimeout)
+    setTimeout(() => {
+        fetch('api/leaderboard.php', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    const container = document.getElementById('leaderboardContainer');
+                    if (container) {
+                        const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+                        container.innerHTML = data.leaderboard.map((item, idx) => `
+                            <div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;">
+                                <span style="font-size:20px;min-width:36px;text-align:center;">${medals[idx] || ''}</span>
+                                <div class="item-info">
+                                    <div class="item-title">${escapeHtml(item.name)}</div>
+                                    <div class="item-subtitle">Absen ${escapeHtml(String(item.attendance_number || '-').padStart(2,'0'))} • ${escapeHtml(item.nis || '-')}</div>
+                                </div>
+                                <span class="badge badge-success">${item.lunas_count} Periode Lunas</span>
+                            </div>
+                        `).join('');
+                    }
+                }
+            })
+            .catch(() => {}); // Silent fail
+    }, 0);
+
     return `
     ${renderHeader('Transparansi Kas', true)}
     <div class="container">
+        ${state.role==='bendahara'?`<div class="flex gap-8 mb-16">
+            <button class="btn btn-primary flex-1" onclick="navigateTo('cetak-laporan')">${getIcon('print')} Cetak Laporan</button>
+            <button class="btn btn-outline flex-1" onclick="downloadCsvReport('transactions')">${getIcon('download')} CSV Transaksi</button>
+            <button class="btn btn-outline flex-1" onclick="downloadCsvReport('expenses')">${getIcon('download')} CSV Pengeluaran</button>
+        </div>`:''}
         <div class="card text-center mb-16"><p style="font-size:14px;color:var(--text-secondary);">Saldo Kas</p><p style="font-size:36px;font-weight:800;color:var(--primary);">${formatRupiah(balance)}</p></div>
         <div class="stat-grid mb-16">
             <div class="stat-card"><div class="stat-value" style="color:var(--success);">${formatRupiah(totalIncome)}</div><div class="stat-label">Total Pemasukan</div></div>
@@ -1442,6 +2434,12 @@ async function renderTransparansiPage() {
         </div>
         <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pemasukan ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${monthlyData.map((v,i)=>{ const h=Math.max((v/maxIn)*140, v>0?8:0); return `<div class="chart-bar-group" title="${formatRupiah(v)}">${v>0?`<b class="amount" style="font-size:8.5px;color:var(--mint)">${formatRupiah(v)}</b>`:""}<div class="chart-bar" style="height:${h}px;background:var(--mint);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
         <div class="card mb-16"><div class="card-header"><span class="card-title">Grafik Pengeluaran ${escapeHtml(String(state.transparansiYear))}</span></div><div class="chart-container"><div class="chart-bars">${expenseMonthly.map((v,i)=>{ const h=Math.max((v/maxEx)*140, v>0?8:0); return `<div class="chart-bar-group" title="${formatRupiah(v)}">${v>0?`<b class="amount" style="font-size:8.5px;color:var(--pink)">${formatRupiah(v)}</b>`:""}<div class="chart-bar" style="height:${h}px;background:var(--pink);"></div><span class="chart-label">${shortMonths[i]}</span></div>`; }).join('')}</div></div></div>
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Tren Kas 6 Bulan Terakhir</span></div>
+            <div style="height:280px;position:relative;">
+                <canvas id="trenKasChart"></canvas>
+            </div>
+        </div>
         <div class="card">
             <div class="card-header"><span class="card-title">Ringkasan Bulanan</span></div>
             <select class="form-input mb-8" onchange="state.transparansiYear=parseInt(this.value);renderPage()">
@@ -1453,7 +2451,171 @@ async function renderTransparansiPage() {
             <p>Pemasukan: <strong>${formatRupiah(monthIncome)}</strong></p>
             <p>Pengeluaran: <strong>${formatRupiah(monthExpense)}</strong></p>
         </div>
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">🏆 Top 5 Siswa Paling Rajin Bayar</span></div>
+            <div id="leaderboardContainer" style="min-height:60px;">
+                <div style="text-align:center;color:var(--muted);padding:20px;">Memuat...</div>
+            </div>
+        </div>
     </div>`;
+}
+
+function downloadCsvReport(type) {
+    const start = prompt('Tanggal mulai (YYYY-MM-DD), kosongkan untuk semua:');
+    if (start === null) return; // user cancel
+    const end = prompt('Tanggal akhir (YYYY-MM-DD), kosongkan untuk semua:');
+    if (end === null) return;
+    const params = new URLSearchParams({ type });
+    if (start) params.append('start_date', start);
+    if (end) params.append('end_date', end);
+    window.open('api/export_report.php?' + params.toString(), '_blank');
+}
+
+function renderCetakLaporanPage() {
+    const params = state.pageParams || {};
+    const startDate = params.start_date || '';
+    const endDate = params.end_date || '';
+    const today = new Date().toISOString().split('T')[0];
+    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+
+    // Filter transaksi
+    let txFiltered = [...state.transactions];
+    if (startDate) txFiltered = txFiltered.filter(t => t.date >= startDate);
+    if (endDate) txFiltered = txFiltered.filter(t => t.date <= endDate);
+    // Hanya transaksi berhasil
+    txFiltered = txFiltered.filter(t => t.status === 'berhasil');
+
+    // Filter pengeluaran
+    let expFiltered = [...state.expenses];
+    if (startDate) expFiltered = expFiltered.filter(e => e.date >= startDate);
+    if (endDate) expFiltered = expFiltered.filter(e => e.date <= endDate);
+
+    // Hitung total
+    const totalIncome = txFiltered.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalExpense = expFiltered.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const balance = totalIncome - totalExpense;
+
+    const catLabels = { kebersihan:'Kebersihan', perlengkapan:'Perlengkapan', kegiatan:'Kegiatan', dekorasi:'Dekorasi', sosial:'Sosial', lainnya:'Lainnya' };
+    const statusLabels = { berhasil:'Lunas', menunggu:'Menunggu Verifikasi', ditolak:'Ditolak' };
+
+    return `${renderHeader('Cetak Laporan Keuangan', true)}
+    <div class="container">
+        <div class="card mb-16">
+            <div class="flex gap-8 mb-16">
+                <div class="form-group flex-1"><label class="form-label">Tanggal Mulai</label><input type="date" id="rptStartDate" class="form-input" value="${escapeHtml(startDate)}" max="${today}"></div>
+                <div class="form-group flex-1"><label class="form-label">Tanggal Akhir</label><input type="date" id="rptEndDate" class="form-input" value="${escapeHtml(endDate)}" max="${today}"></div>
+            </div>
+            <div class="flex gap-8">
+                <button class="btn btn-primary flex-1" onclick="applyReportFilter()">${getIcon('search')} Terapkan Filter</button>
+                <button class="btn btn-outline flex-1" onclick="resetReportFilter()">${getIcon('refresh')} Reset</button>
+                <button class="btn btn-warning flex-1" onclick="window.print()">${getIcon('print')} Cetak / Simpan PDF</button>
+            </div>
+        </div>
+
+        <div class="card mb-16" style="text-align:center;border:2px solid var(--violet);">
+            <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Laporan Keuangan Kelas</div>
+            <div style="font-size:22px;font-weight:900;color:var(--ink);">${escapeHtml(state.currentUserData?.kelas || 'Kelas')}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;">Periode: ${startDate ? formatDate(startDate) : 'Awal'} ${startDate || endDate ? 's.d.' : ''} ${endDate ? formatDate(endDate) : 'Sekarang'}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">Dicetak pada: ${formatDate(today)} ${new Date().toLocaleTimeString('id-ID')}</div>
+        </div>
+
+        <div class="stat-grid mb-16">
+            <div class="stat-card"><div class="stat-value" style="color:var(--success);">${formatRupiah(totalIncome)}</div><div class="stat-label">Total Pemasukan</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--danger);">${formatRupiah(totalExpense)}</div><div class="stat-label">Total Pengeluaran</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:${balance>=0?'var(--primary)':'var(--danger)'};">${formatRupiah(balance)}</div><div class="stat-label">Saldo</div></div>
+            <div class="stat-card"><div class="stat-value">${txFiltered.length + expFiltered.length}</div><div class="stat-label">Total Record</div></div>
+        </div>
+
+        ${txFiltered.length > 0 ? `
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Pemasukan (Transaksi Lunas)</span><span style="font-size:11px;color:var(--muted);">${txFiltered.length} record</span></div>
+            <div style="max-height:400px;overflow:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead><tr style="background:var(--bg);position:sticky;top:0;z-index:1;">
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Tanggal</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Siswa</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">NIS</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Periode</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Frekuensi</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:right;">Jumlah</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Metode</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Status</th>
+                    </tr></thead>
+                    <tbody>
+                        ${txFiltered.map(t => `<tr style="border-bottom:1px solid var(--line);">
+                            <td style="padding:8px;">${escapeHtml(t.date)}</td>
+                            <td style="padding:8px;">${escapeHtml(t.studentName || 'Siswa')}</td>
+                            <td style="padding:8px;">${escapeHtml(t.studentId ? state.students.find(s=>s.id==t.studentId)?.nis || '-' : '-')}</td>
+                            <td style="padding:8px;">${escapeHtml(t.periodLabel || '-')}</td>
+                            <td style="padding:8px;">${escapeHtml(t.frequency || '-')}</td>
+                            <td style="padding:8px;text-align:right;font-family:monospace;">${formatRupiah(t.amount)}</td>
+                            <td style="padding:8px;">${escapeHtml(t.method?.toUpperCase() || '-')}</td>
+                            <td style="padding:8px;"><span class="badge ${getStatusBadgeClass(t.status)}">${getStatusLabel(t.status)}</span></td>
+                        </tr>`).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background:var(--bg);font-weight:800;">
+                            <td colspan="5" style="padding:8px;text-align:right;border-top:2px solid var(--line);">TOTAL</td>
+                            <td style="padding:8px;text-align:right;border-top:2px solid var(--line);font-family:monospace;">${formatRupiah(totalIncome)}</td>
+                            <td colspan="2" style="padding:8px;border-top:2px solid var(--line);"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        ` : `<div class="card mb-16"><p style="text-align:center;color:var(--muted);padding:20px;">Tidak ada data pemasukan untuk periode ini.</p></div>`}
+
+        ${expFiltered.length > 0 ? `
+        <div class="card mb-16">
+            <div class="card-header"><span class="card-title">Pengeluaran</span><span style="font-size:11px;color:var(--muted);">${expFiltered.length} record</span></div>
+            <div style="max-height:400px;overflow:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead><tr style="background:var(--bg);position:sticky;top:0;z-index:1;">
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Tanggal</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Nama</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Kategori</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:right;">Jumlah</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Deskripsi</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:left;">Dibuat Oleh</th>
+                        <th style="padding:8px;border-bottom:1px solid var(--line);text-align:center;">Nota</th>
+                    </tr></thead>
+                    <tbody>
+                        ${expFiltered.map(e => `<tr style="border-bottom:1px solid var(--line);">
+                            <td style="padding:8px;">${escapeHtml(e.date)}</td>
+                            <td style="padding:8px;">${escapeHtml(e.name)}</td>
+                            <td style="padding:8px;">${escapeHtml(catLabels[e.category] || e.category)}</td>
+                            <td style="padding:8px;text-align:right;font-family:monospace;">${formatRupiah(e.amount)}</td>
+                            <td style="padding:8px;">${escapeHtml(e.desc || '-')}</td>
+                            <td style="padding:8px;">${escapeHtml(e.createdByName || '-')}</td>
+                            <td style="padding:8px;text-align:center;">${e.receiptFile ? '<span class="badge badge-success">Ada</span>' : '<span class="badge badge-neutral">-</span>'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background:var(--bg);font-weight:800;">
+                            <td colspan="3" style="padding:8px;text-align:right;border-top:2px solid var(--line);">TOTAL</td>
+                            <td style="padding:8px;text-align:right;border-top:2px solid var(--line);font-family:monospace;">${formatRupiah(totalExpense)}</td>
+                            <td colspan="3" style="padding:8px;border-top:2px solid var(--line);"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        ` : `<div class="card mb-16"><p style="text-align:center;color:var(--muted);padding:20px;">Tidak ada data pengeluaran untuk periode ini.</p></div>`}
+
+        <div class="card" style="background:var(--bg);border:1px dashed var(--line);">
+            <p style="font-size:11px;color:var(--muted);text-align:center;margin:0;">Halaman ini dirancang untuk dicetak. Gunakan tombol <b>Cetak / Simpan PDF</b> atau <kbd>Ctrl+P</kbd> untuk menyimpan sebagai PDF.</p>
+        </div>
+    </div>`;
+}
+
+function applyReportFilter() {
+    const start = document.getElementById('rptStartDate').value;
+    const end = document.getElementById('rptEndDate').value;
+    navigateTo('cetak-laporan', { start_date: start, end_date: end });
+}
+
+function resetReportFilter() {
+    navigateTo('cetak-laporan', {});
 }
 
 // ==================== PENGELUARAN ====================
@@ -1852,7 +3014,7 @@ async function confirmLogout() {
 
 function renderEditProfilPage() {
     const user = getCurrentUser();
-    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${escapeHtml(user.nis || '')}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${escapeHtml(user.kelas || '')}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${escapeHtml(user.email || '')}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${escapeHtml(user.phone || '')}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"></div><div class="form-group"><label class="form-label">Password Baru</label><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
+    return `${renderHeader('Edit Profil', true)}<div class="container"><div class="text-center mb-16">${getAvatarHtml(user,'avatar-lg')}<button class="btn btn-outline btn-sm mt-8" onclick="document.getElementById('profilePhotoInput').click()">Ganti Foto</button><input type="file" id="profilePhotoInput" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)"></div><div class="card"><div class="form-group"><label class="form-label">NIS (tidak bisa diedit)</label><input class="form-input" value="${escapeHtml(user.nis || '')}" disabled></div><div class="form-group"><label class="form-label">Kelas</label><input class="form-input" value="${escapeHtml(user.kelas || '')}" disabled></div><div class="form-group"><label class="form-label">Email</label><input class="form-input" id="editEmail" value="${escapeHtml(user.email || '')}"></div><div class="form-group"><label class="form-label">No. HP</label><input class="form-input" id="editPhone" value="${escapeHtml(user.phone || '')}"></div><div class="form-group"><label class="form-label">Password Saat Ini (wajib jika ubah password)</label><div class="password-field"><input type="password" class="form-input" id="editCurrentPass" placeholder="Masukkan password saat ini"><button type="button" class="password-toggle" onclick="togglePasswordVisibility('editCurrentPass', this)" aria-label="Tampilkan password">${ic('eye')}</button></div></div><div class="form-group"><label class="form-label">Password Baru</label><div class="password-field"><input type="password" class="form-input" id="editNewPass" placeholder="Kosongkan jika tidak diubah"><button type="button" class="password-toggle" onclick="togglePasswordVisibility('editNewPass', this)" aria-label="Tampilkan password">${ic('eye')}</button></div></div><div class="form-group"><label class="form-label">Konfirmasi Password Baru</label><div class="password-field"><input type="password" class="form-input" id="editConfirmPass" placeholder="Ulangi password baru"><button type="button" class="password-toggle" onclick="togglePasswordVisibility('editConfirmPass', this)" aria-label="Tampilkan password">${ic('eye')}</button></div></div><button class="btn btn-primary btn-block" onclick="saveEditProfile()">Simpan</button></div></div>`;
 }
 
 async function handleProfilePhotoUpload(event) {
@@ -2475,6 +3637,81 @@ async function submitAddStudent() {
     }
 }
 
+function showImportCsvModal() {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Import Siswa dari CSV</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Format CSV: nama_lengkap,nis,username,nomor_absen,email,no_hp</p>
+        <div class="form-group">
+            <label class="form-label">File CSV *</label>
+            <input type="file" id="csvFileInput" class="form-input" accept=".csv" onchange="handleCsvFileSelect(event)">
+        </div>
+        <div id="csvPreview" style="display:none;margin-top:8px;padding:10px;background:var(--input-bg);border-radius:8px;font-size:12px;"></div>
+        <div class="flex gap-8 mt-16">
+            <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
+            <button class="btn btn-primary flex-1" id="csvImportBtn" onclick="submitImportCsv()" disabled>${getIcon('upload')} Import</button>
+        </div>
+    `);
+}
+
+let selectedCsvFile = null;
+
+function handleCsvFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) { selectedCsvFile = null; return; }
+    if (file.size > 500 * 1024) { // 500KB max for CSV
+        showToast('Ukuran file CSV maksimal 500KB', 'warning');
+        event.target.value = '';
+        selectedCsvFile = null;
+        return;
+    }
+    selectedCsvFile = file;
+    const preview = document.getElementById('csvPreview');
+    preview.style.display = 'block';
+    preview.innerHTML = `<b>File:</b> ${escapeHtml(file.name)} (${(file.size/1024).toFixed(1)} KB)<br><b>Baris akan diproses:</b> mengurai...`;
+    
+    // Preview first few lines
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const lines = e.target.result.split('\n').slice(0, 4);
+        preview.innerHTML = `<b>File:</b> ${escapeHtml(file.name)} (${(file.size/1024).toFixed(1)} KB)<br><b>Preview:</b><br>${lines.map(l => escapeHtml(l)).join('<br>')}${lines.length >= 4 ? '<br>...' : ''}`;
+    };
+    reader.readAsText(file);
+    
+    document.getElementById('csvImportBtn').disabled = false;
+}
+
+async function submitImportCsv() {
+    if (!selectedCsvFile) { showToast('Pilih file CSV dulu', 'warning'); return; }
+    const btn = document.getElementById('csvImportBtn');
+    btn.disabled = true; btn.textContent = 'Mengimport...';
+    
+    const formData = new FormData();
+    formData.append('csv_file', selectedCsvFile);
+    
+    try {
+        const res = await apiFetch('import_students.php', 'POST', formData, true);
+        if (res.success_count !== undefined) {
+            let msg = `${res.success_count} siswa berhasil diimport`;
+            if (res.failed_rows && res.failed_rows.length > 0) {
+                msg += `, ${res.failed_rows.length} baris gagal`;
+                // Show details in modal
+                const details = res.failed_rows.map(r => `Baris ${r.row}: ${r.reason}`).join('\n');
+                setTimeout(() => showModal(`<h3>Detail Gagal Import</h3><pre style="background:var(--input-bg);padding:10px;border-radius:8px;font-size:11px;white-space:pre-wrap;max-height:300px;overflow:auto;">${escapeHtml(details)}</pre><div class="mt-16"><button class="btn btn-primary" onclick="closeModal()">Tutup</button></div>`), 500);
+            }
+            closeModal();
+            showToast(msg, res.failed_rows?.length ? 'warning' : 'success');
+            await loadDataFromServer();
+            renderPage();
+        } else {
+            showToast(res.error || 'Gagal import CSV', 'error');
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+    }
+    btn.disabled = false; btn.textContent = `${getIcon('upload')} Import`;
+}
+
 function showEditStudentModal(userId) {
     if (!requireBendaharaUI()) return;
     const s = state.students.find(x => x.id == userId);
@@ -2539,6 +3776,34 @@ async function doDeactivateStudent(userId) {
             await loadDataFromServer(); goBack();
         } else {
             showToast(res.error || 'Gagal menonaktifkan siswa', 'error');
+            closeModal();
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        closeModal();
+    }
+}
+
+function confirmResetPassword(userId, studentName) {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Reset Password?</h3>
+        <p>Password untuk <b>${escapeHtml(studentName)}</b> akan dikembalikan ke default: <code style="background:var(--input-bg);padding:2px 6px;border-radius:4px;">siswa123</code></p>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Siswa bisa login ulang dengan password default ini.</p>
+        <div class="flex gap-8 mt-16">
+            <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
+            <button class="btn btn-warning flex-1" onclick="doResetPassword(${userId})">Reset Password</button>
+        </div>
+    `);
+}
+
+async function doResetPassword(userId) {
+    try {
+        const res = await apiFetch('students.php', 'PUT', { action: 'reset_password', user_id: userId });
+        if (res.success) {
+            closeModal(); showToast(res.message || 'Password berhasil direset ke siswa123', 'success');
+        } else {
+            showToast(res.error || 'Gagal reset password', 'error');
             closeModal();
         }
     } catch (e) {

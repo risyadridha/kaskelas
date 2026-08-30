@@ -49,7 +49,7 @@ if ($throttle['blocked']) {
 // 2b: per IP (global) — cegah password spraying ke banyak username dari satu IP.
 //     Batas longgar agar kelas berbagi Wi-Fi (NAT) tidak ikut terkena; tidak direset saat login sukses.
 $ipThrottleKey = md5('IP|' . $ipKey);
-$ipThrottle = login_throttle_check($ipThrottleKey, 30, 600);
+$ipThrottle = login_throttle_check($ipThrottleKey, 100, 600);
 if ($ipThrottle['blocked']) {
     json_response(['error' => 'Terlalu banyak percobaan login gagal dari jaringan ini. Silakan coba lagi nanti.'], 429);
 }
@@ -65,7 +65,11 @@ $stmt = $pdo->prepare("
 $stmt->execute([$username]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if ($user && password_verify($password, $user['password_hash'])) {
+$dummyHash = '$2y$10$abcdefghijklmnopqrstuOZJqQq6i0PJfg7yX9zK3nM1vB2cD4eF6';
+    $passwordHashToCheck = $user['password_hash'] ?? $dummyHash;
+    $passwordValid = password_verify($password, $passwordHashToCheck);
+
+    if ($user && $passwordValid) {
     // Cek status akun
     if ($user['status'] !== 'active') {
         json_response(['error' => 'Akun tidak aktif atau ditangguhkan'], 403);
