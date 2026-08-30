@@ -1394,7 +1394,7 @@ function renderAnggotaPage() {
     return `
     ${renderHeader('Anggota Kelas', true)}
     <div class="container">
-        ${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>`:''}
+        ${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-primary flex-1" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button><button class="btn btn-outline flex-1" onclick="showImportCSVModal()">${getIcon('upload')} Import CSV</button></div>`:''}
         <div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
         <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
@@ -2453,6 +2453,58 @@ async function saveKasSettings() {
 }
 
 // ---------- B11-05 STUDENT MANAGEMENT ----------
+function showImportCSVModal() {
+    if (!requireBendaharaUI()) return;
+    showModal(`
+        <h3>Import Siswa via CSV</h3>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Pilih file CSV dengan format kolom: username, nis, full_name, attendance_number, email, phone</p>
+        <div class="form-group">
+            <input type="file" id="csvFileInput" class="form-input" accept=".csv,text/csv">
+        </div>
+        <div class="flex gap-8 mt-16">
+            <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
+            <button class="btn btn-primary flex-1" id="btnSubmitImportCSV" onclick="submitImportCSV()">${getIcon('upload')} Import</button>
+        </div>
+    `);
+}
+
+async function submitImportCSV() {
+    const fileInput = document.getElementById('csvFileInput');
+    const file = fileInput?.files[0];
+    if (!file) {
+        showToast('Pilih file CSV terlebih dahulu', 'warning');
+        return;
+    }
+    const btn = document.getElementById('btnSubmitImportCSV');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Mengimpor...';
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const res = await apiFetch('import_students.php', 'POST', formData, true);
+        if (res.success) {
+            closeModal();
+            showToast(`Berhasil mengimpor ${res.imported_count} siswa!`, 'success');
+            await loadDataFromServer();
+            renderPage();
+        } else {
+            showToast(res.error || 'Gagal mengimpor CSV', 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `${getIcon('upload')} Import`;
+            }
+        }
+    } catch (e) {
+        showToast('Gagal terhubung ke server', 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `${getIcon('upload')} Import`;
+        }
+    }
+}
+
 function showAddStudentModal() {
     if (!requireBendaharaUI()) return;
     showModal(`
