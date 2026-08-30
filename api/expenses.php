@@ -81,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($name) || $amount <= 0) {
         json_response(['error' => 'Nama dan nominal wajib diisi'], 400);
     }
+    if (mb_strlen($name) > 255) {
+        json_response(['error' => 'Nama pengeluaran maksimal 255 karakter'], 400);
+    }
 
     $validCategories = ['kebersihan', 'perlengkapan', 'kegiatan', 'dekorasi', 'sosial', 'lainnya'];
     if (!in_array($category, $validCategories, true)) {
@@ -91,6 +94,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $receiptFile = null;
+    if (isset($_FILES['receipt'])) {
+        if ($_FILES['receipt']['error'] !== UPLOAD_ERR_OK && $_FILES['receipt']['error'] !== UPLOAD_ERR_NO_FILE) {
+            if ($_FILES['receipt']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['receipt']['error'] === UPLOAD_ERR_FORM_SIZE) {
+                json_response(['error' => 'Ukuran file nota melebihi batas maksimal server (5MB)'], 400);
+            }
+            json_response(['error' => 'Gagal mengunggah nota (kode error: ' . $_FILES['receipt']['error'] . ')'], 400);
+        }
+    }
     if (isset($_FILES['receipt']) && $_FILES['receipt']['error'] === UPLOAD_ERR_OK) {
         $file = $_FILES['receipt'];
         if ($file['size'] > 5 * 1024 * 1024) {
@@ -159,6 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
 
     if (!$expenseId || empty($name) || $amount <= 0) {
         json_response(['error' => 'Data tidak valid'], 400);
+    }
+    if (mb_strlen($name) > 255) {
+        json_response(['error' => 'Nama pengeluaran maksimal 255 karakter'], 400);
     }
 
     $validCategories = ['kebersihan', 'perlengkapan', 'kegiatan', 'dekorasi', 'sosial', 'lainnya'];

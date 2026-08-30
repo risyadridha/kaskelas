@@ -141,6 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($title) || empty($description)) {
         json_response(['error' => 'Judul dan deskripsi wajib diisi'], 400);
     }
+    if (mb_strlen($title) > 255) {
+        json_response(['error' => 'Judul laporan maksimal 255 karakter'], 400);
+    }
 
     $validCategories = ['pembayaran', 'akun', 'bukti_pembayaran', 'data_kas', 'aplikasi', 'lainnya'];
     if (!in_array($category, $validCategories, true)) {
@@ -148,11 +151,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($transactionId !== null && $transactionId !== '') {
-        $stmt = $pdo->prepare('SELECT id FROM transactions WHERE id = ? AND user_id = ?');
-        $stmt->execute([$transactionId, $userId]);
-        if (!$stmt->fetch()) {
+        $stmt = $pdo->prepare('SELECT id FROM transactions WHERE (id = ? OR transaction_code = ?) AND user_id = ?');
+        $stmt->execute([$transactionId, $transactionId, $userId]);
+        $tx = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$tx) {
             json_response(['error' => 'Transaksi tidak ditemukan'], 404);
         }
+        $transactionId = $tx['id'];
     } else {
         $transactionId = null;
     }

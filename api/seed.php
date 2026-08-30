@@ -1,13 +1,10 @@
 <?php
 // api/seed.php
 require 'config.php';
-if (!defined('ALLOW_SEED') || ALLOW_SEED !== true) {
+if (php_sapi_name() !== 'cli' && (!defined('ALLOW_SEED') || ALLOW_SEED !== true)) {
+    http_response_code(403);
     die('Akses ditolak');
 }
-// Development only: beri pengaman jika tidak ingin diakses publik di production
-// if (!defined('ALLOW_SEED') || ALLOW_SEED !== true) {
-//     die('Akses ditolak');
-// }
 
 // Nilai eksplisit untuk development
 $className = 'XII RPL 3';
