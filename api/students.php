@@ -52,7 +52,9 @@ if ($method === 'GET') {
         $lunas = (int)$student['lunas'];
         $menunggu = (int)$student['menunggu'];
 
-        if ($totalPeriods > 0 && $lunas === $totalPeriods) {
+        if ($student['user_status'] !== 'active') {
+            $student['status'] = 'nonaktif';
+        } elseif ($totalPeriods > 0 && $lunas === $totalPeriods) {
             $student['status'] = 'lunas';
         } elseif ($menunggu > 0) {
             $student['status'] = 'menunggu';

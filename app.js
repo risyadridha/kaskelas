@@ -1389,14 +1389,14 @@ function renderAnggotaPage() {
     else if (state.sortBy === 'nama-asc') members.sort((a,b)=>a.name.localeCompare(b.name));
     else if (state.sortBy === 'nama-desc') members.sort((a,b)=>b.name.localeCompare(a.name));
     else if (state.sortBy === 'status') { const order={lunas:1,menunggu:2,belum:3}; members.sort((a,b)=>(order[a.status]||4)-(order[b.status]||4)); }
-    const statusMap={lunas:'Lunas',menunggu:'Menunggu',belum:'Belum bayar'};
-    const badgeMap={lunas:'badge-success',menunggu:'badge-warning',belum:'badge-danger'};
+    const statusMap={lunas:'Lunas',menunggu:'Menunggu',belum:'Belum bayar',nonaktif:'Nonaktif'};
+    const badgeMap={lunas:'badge-success',menunggu:'badge-warning',belum:'badge-danger',nonaktif:'badge-neutral'};
     return `
     ${renderHeader('Anggota Kelas', true)}
     <div class="container">
         ${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>`:''}
         <div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
-        <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
+        <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum','nonaktif'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
         ${members.map(m=>`<div class="card mb-8" onclick="navigateTo('detail-anggota',{id:${m.id}})"><div class="flex items-center gap-12">${getAvatarHtml(m,'avatar-sm')}<div class="flex-1"><p class="item-title">${escapeHtml(m.name)}</p><p class="item-subtitle">Absen ${escapeHtml(String(m.absenNumber).padStart(2,'0'))}</p></div><span class="badge ${badgeMap[m.status] || 'badge-neutral'}">${statusMap[m.status] || escapeHtml(m.status)}</span></div></div>`).join('')}
     </div>`;
