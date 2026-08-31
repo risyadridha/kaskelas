@@ -93,12 +93,12 @@ $years = array_values(array_map('intval', array_filter($stmt->fetchAll(PDO::FETC
 })));
 
 json_response([
-    'opening_balance' => $openingBalance,
-    'total_income' => $income,
-    'total_expense' => $expense,
-    'balance' => $balance,
-    'monthly_income' => $monthlyIncome,
-    'monthly_expense' => $monthlyExpense,
+    'opening_balance' => round($openingBalance, 2),
+    'total_income' => round($income, 2),
+    'total_expense' => round($expense, 2),
+    'balance' => round($balance, 2),
+    'monthly_income' => array_map(function($v) { return round($v, 2); }, $monthlyIncome),
+    'monthly_expense' => array_map(function($v) { return round($v, 2); }, $monthlyExpense),
     'year' => $yearParam,
     'years' => $years,
 ]);

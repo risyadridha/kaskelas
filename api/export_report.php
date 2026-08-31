@@ -1,142 +1,169 @@
 <?php
 // api/export_report.php
+// Ekspor laporan keuangan ke CSV (bendahara only)
 require 'config.php';
 require 'helpers.php';
 
+require_role('bendahara');
 require_login();
 
 $userId = $_SESSION['user_id'];
-$role = $_SESSION['role'];
 
-// Fetch class_id from user
+// Rate limit per user (10 request per menit)
+$exportThrottleKey = md5('export_report|' . $userId);
+$exportThrottle = login_throttle_check($exportThrottleKey, 10, 60);
+if ($exportThrottle['blocked']) {
+    json_response(['error' => 'Terlalu banyak permintaan ekspor, coba lagi sebentar'], 429);
+}
+
+// Ambil class_id bendahara
 $stmt = $pdo->prepare("SELECT class_id FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user) {
     json_response(['error' => 'User tidak ditemukan'], 404);
 }
-$classId = (int)$user['class_id'];
+$classId = $user['class_id'];
 
-$type = $_GET['type'] ?? 'transactions';
-$startDate = $_GET['start_date'] ?? null;
-$endDate = $_GET['end_date'] ?? null;
+$type = $_GET['type'] ?? 'transactions'; // 'transactions' atau 'expenses'
+$startDate = $_GET['start_date'] ?? '';
+$endDate = $_GET['end_date'] ?? '';
 
+// Validasi tipe
 if (!in_array($type, ['transactions', 'expenses'], true)) {
     json_response(['error' => 'Tipe laporan tidak valid'], 400);
 }
 
-if ($startDate && !valid_date($startDate)) {
-    json_response(['error' => 'Tanggal mulai tidak valid'], 400);
+// Validasi tanggal
+if ($startDate && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
+    json_response(['error' => 'Format start_date tidak valid (YYYY-MM-DD)'], 400);
+}
+if ($endDate && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+    json_response(['error' => 'Format end_date tidak valid (YYYY-MM-DD)'], 400);
 }
 
-if ($endDate && !valid_date($endDate)) {
-    json_response(['error' => 'Tanggal akhir tidak valid'], 400);
-}
+// Set header untuk download CSV
+$fileName = 'laporan_' . $type . '_' . date('Ymd') . '.csv';
+header('Content-Type: text/csv; charset=utf-8');
+header('Content-Disposition: attachment; filename="' . $fileName . '"');
+header('Pragma: no-cache');
+header('Expires: 0');
 
-$dateParams = [$classId];
-$dateCond = "";
+$output = fopen('php://output', 'w');
+
+// Tambah BOM untuk UTF-8 agar Excel membaca karakter Indonesia dengan benar
+fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
 if ($type === 'transactions') {
+    // Header CSV untuk transaksi
+    fputcsv($output, [
+        'Tanggal', 'Siswa', 'NIS', 'Periode', 'Frekuensi', 
+        'Jumlah', 'Metode', 'Status', 'Tanggal Verifikasi'
+    ]);
+
+    // Query transaksi dengan filter tanggal dan kelas
+    $where = "WHERE u.class_id = ?";
+    $params = [$classId];
+
     if ($startDate) {
-        $dateCond .= " AND DATE(COALESCE(t.payment_date, t.created_at)) >= ?";
-        $dateParams[] = $startDate;
+        $where .= " AND t.payment_date >= ?";
+        $params[] = $startDate;
     }
     if ($endDate) {
-        $dateCond .= " AND DATE(COALESCE(t.payment_date, t.created_at)) <= ?";
-        $dateParams[] = $endDate;
+        $where .= " AND t.payment_date <= ?";
+        $params[] = $endDate;
     }
+    $where .= " AND t.status = 'berhasil'";
 
     $stmt = $pdo->prepare("
-        SELECT t.id,
-               t.transaction_code,
-               COALESCE(s.full_name, u.username) AS student_name,
-               s.nis,
-               t.total_amount,
-               t.method,
-               t.status,
-               COALESCE(t.payment_date, t.created_at) AS date_record,
-               GROUP_CONCAT(DISTINCT cp.name ORDER BY cp.id SEPARATOR '; ') AS period_names
+        SELECT t.payment_date, t.created_at, t.total_amount, t.method, t.status, t.verified_at,
+               u.username, s.nis, s.full_name,
+               cp.name AS period_name, cp.frequency
         FROM transactions t
         JOIN users u ON u.id = t.user_id
         LEFT JOIN students s ON s.user_id = u.id
-        LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
-        LEFT JOIN cash_periods cp ON cp.id = ti.period_id
-        WHERE u.class_id = ? AND t.status = 'berhasil'" . $dateCond . "
-        GROUP BY t.id, t.transaction_code, student_name, s.nis, t.total_amount, t.method, t.status, date_record
-        ORDER BY date_record DESC
+        LEFT JOIN cash_periods cp ON cp.id = t.period_id
+        $where
+        ORDER BY t.payment_date DESC, t.created_at DESC
     ");
-    $stmt->execute($dateParams);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute($params);
 
-    $filename = 'laporan_transaksi_kas_' . date('Ymd_His') . '.csv';
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $periodLabel = $row['period_name'] ?? '-';
+        if ($row['frequency']) {
+            $periodLabel .= ' (' . $row['frequency'] . ')';
+        }
+        
+        $statusLabel = match($row['status']) {
+            'berhasil' => 'Lunas',
+            'menunggu' => 'Menunggu Verifikasi',
+            'ditolak' => 'Ditolak',
+            default => $row['status']
+        };
 
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-    $output = fopen('php://output', 'w');
-    // Write UTF-8 BOM for Excel compatibility
-    fprintf($output, "\xEF\xBB\xBF");
-
-    fputcsv($output, ['ID Transaksi', 'Kode Transaksi', 'NIS', 'Nama Siswa', 'Periode', 'Nominal', 'Metode', 'Status', 'Tanggal Pembayaran']);
-
-    foreach ($rows as $r) {
         fputcsv($output, [
-            $r['id'],
-            $r['transaction_code'],
-            $r['nis'] ?: '-',
-            $r['student_name'],
-            $r['period_names'] ?: '-',
-            $r['total_amount'],
-            strtoupper($r['method']),
-            $r['status'],
-            $r['date_record']
+            $row['payment_date'] ?? ($row['created_at'] ? date('Y-m-d', strtotime($row['created_at'])) : '-'),
+            $row['full_name'] ?? $row['username'] ?? '-',
+            $row['nis'] ?? '-',
+            $periodLabel,
+            $row['frequency'] ?? '-',
+            $row['total_amount'],
+            strtoupper($row['method'] ?? '-'),
+            $statusLabel,
+            $row['verified_at'] ?? '-'
         ]);
     }
-    fclose($output);
-    exit;
 } else {
+    // Header CSV untuk pengeluaran
+    fputcsv($output, [
+        'Tanggal', 'Nama Pengeluaran', 'Kategori', 'Jumlah', 
+        'Deskripsi', 'Dibuat Oleh', 'Ada Nota'
+    ]);
+
+    $where = "WHERE e.class_id = ?";
+    $params = [$classId];
+
     if ($startDate) {
-        $dateCond .= " AND e.expense_date >= ?";
-        $dateParams[] = $startDate;
+        $where .= " AND e.expense_date >= ?";
+        $params[] = $startDate;
     }
     if ($endDate) {
-        $dateCond .= " AND e.expense_date <= ?";
-        $dateParams[] = $endDate;
+        $where .= " AND e.expense_date <= ?";
+        $params[] = $endDate;
     }
 
     $stmt = $pdo->prepare("
-        SELECT e.id, e.name, e.category, e.amount, e.description, e.expense_date, u.username AS created_by_name
+        SELECT e.expense_date, e.name, e.category, e.amount, e.description,
+               e.receipt_file, u.username AS created_by_name
         FROM expenses e
         JOIN users u ON u.id = e.created_by
-        WHERE e.class_id = ?" . $dateCond . "
-        ORDER BY e.expense_date DESC
+        $where
+        ORDER BY e.expense_date DESC, e.created_at DESC
     ");
-    $stmt->execute($dateParams);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute($params);
 
-    $filename = 'laporan_pengeluaran_kas_' . date('Ymd_His') . '.csv';
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $categoryLabel = match($row['category']) {
+            'kebersihan' => 'Kebersihan',
+            'perlengkapan' => 'Perlengkapan',
+            'kegiatan' => 'Kegiatan',
+            'dekorasi' => 'Dekorasi',
+            'sosial' => 'Sosial',
+            default => 'Lainnya'
+        };
 
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-    $output = fopen('php://output', 'w');
-    // Write UTF-8 BOM
-    fprintf($output, "\xEF\xBB\xBF");
-
-    fputcsv($output, ['ID Pengeluaran', 'Nama Pengeluaran', 'Kategori', 'Nominal', 'Deskripsi', 'Tanggal', 'Dibuat Oleh']);
-
-    foreach ($rows as $r) {
         fputcsv($output, [
-            $r['id'],
-            $r['name'],
-            $r['category'],
-            $r['amount'],
-            $r['description'] ?: '-',
-            $r['expense_date'],
-            $r['created_by_name']
+            $row['expense_date'],
+            $row['name'],
+            $categoryLabel,
+            $row['amount'],
+            $row['description'] ?? '-',
+            $row['created_by_name'] ?? '-',
+            $row['receipt_file'] ? 'Ya' : 'Tidak'
         ]);
     }
-    fclose($output);
-    exit;
 }
+
+fclose($output);
+exit;
 ?>

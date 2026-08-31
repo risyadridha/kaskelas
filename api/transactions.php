@@ -7,6 +7,9 @@ require_login();
 $userId = $_SESSION['user_id'];
 $role = $_SESSION['role'];
 
+// Set group_concat_max_len agar period_label/period_ids tidak terpotong (BUG2-02)
+$pdo->exec("SET SESSION group_concat_max_len = 10000");
+
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 20;
 $offset = ($page - 1) * $limit;

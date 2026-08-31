@@ -8,8 +8,15 @@ require_csrf();
 
 $userId = $_SESSION['user_id'];
 
-if (!isset($_FILES['photo']) || $_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
+if (!isset($_FILES['photo'])) {
     json_response(['error' => 'File photo tidak ditemukan'], 400);
+}
+
+if ($_FILES['photo']['error'] !== UPLOAD_ERR_OK) {
+    if ($_FILES['photo']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['photo']['error'] === UPLOAD_ERR_FORM_SIZE) {
+        json_response(['error' => 'Ukuran foto melebihi batas maksimal server (2MB)'], 400);
+    }
+    json_response(['error' => 'Gagal mengunggah foto (kode error: ' . $_FILES['photo']['error'] . ')'], 400);
 }
 
 $file = $_FILES['photo'];

@@ -47,6 +47,26 @@ const state = {
     selectedUploadTxId: null,
 };
 
+function resetAppState() {
+    state.students = [];
+    state.periods = [];
+    state.transactions = [];
+    state.expenses = [];
+    state.announcements = [];
+    state.notifications = [];
+    state.activities = [];
+    state.userReports = [];
+    state.selectedPeriods = [];
+    state.historyStack = [];
+    state.pageParams = {};
+    state.searchQuery = '';
+    state.filterStatus = 'semua';
+    state.filterMethod = 'semua';
+    state.filterPeriod = 'semua';
+    state.uploadedFile = null;
+    state.selectedUploadTxId = null;
+}
+
 // ==================== SVG ICON SYSTEM ====================
 const iconsSvg = {
     'home': `<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
@@ -111,7 +131,7 @@ function avatarFallback(imgEl){
     imgEl.replaceWith(div);
 }
 function showToast(message, type='success'){ const container=document.getElementById('toastContainer'); const toast=document.createElement('div'); toast.className=`toast toast-${type}`; const icons={success:'i-checkc',error:'i-x',warning:'i-alert',info:'i-info'}; toast.innerHTML=`<svg class="ic"><use href="#${icons[type]||'i-info'}"/></svg><span>${escapeHtml(message)}</span>`; container.appendChild(toast); setTimeout(()=>{ toast.style.opacity='0'; toast.style.transform='translateY(-20px)'; toast.style.transition='all 0.3s ease'; setTimeout(()=>toast.remove(),300); },3000); }
-function showBottomSheet(content){ document.getElementById('bsOverlay').classList.add('open'); document.getElementById('bottomSheet').classList.add('open'); document.getElementById('bsContent').innerHTML=content; document.getElementById('bsOverlay').onclick=()=>closeBottomSheet(); }
+function showBottomSheet(content){ document.getElementById('bsOverlay').classList.add('open'); document.getElementById('bottomSheet').classList.add('open'); document.getElementById('bsContent').innerHTML=content; }
 function closeBottomSheet(){ document.getElementById('bsOverlay').classList.remove('open'); document.getElementById('bottomSheet').classList.remove('open'); }
 function showModal(html){ document.getElementById('modalOverlay').classList.add('open'); document.getElementById('modalBox').innerHTML=html; document.getElementById('modalOverlay').onclick=(e)=>{ if(e.target===document.getElementById('modalOverlay')) closeModal(); }; }
 function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
@@ -140,7 +160,7 @@ function normalizeTransaction(t) {
     }
 
     const createdStr = t.created_at || t.createdAt || new Date().toISOString();
-    const dateOnly = createdStr ? createdStr.split('T')[0] : new Date().toISOString().split('T')[0];
+    const dateOnly = createdStr ? createdStr.replace(' ', 'T').substring(0, 10) : new Date().toISOString().substring(0, 10);
 
     return {
         id: t.id,
@@ -155,7 +175,7 @@ function normalizeTransaction(t) {
         total_amount: amountVal,
         method: t.method || 'cash',
         date: dateOnly,
-        dateObj: new Date(createdStr),
+        dateObj: new Date(createdStr.replace(' ', 'T')),
         status: t.status || 'menunggu',
         proof: proofObj,
         rejectionReason: t.rejection_reason || t.rejectionReason || null,
@@ -248,45 +268,45 @@ function getStatusBadgeClass(status) {
 
 function addNotification(type, data) {
     const newNotif = {
-        id: state.notifications.length + 1,
+        id: Date.now(),
         type: type,
         title: '',
         message: '',
         date: new Date().toISOString(),
         isRead: false,
-        link: null,
-        txId: data?.id || null
+        reference_type: null,
+        reference_id: data?.id || null
     };
     switch(type){
         case 'pembayaran_menunggu':
             newNotif.title = 'Pembayaran Menunggu Verifikasi';
-            newNotif.message = `Pembayaran untuk ${data.periodLabel} sedang menunggu verifikasi.`;
-            newNotif.link = 'upload-bukti';
+            newNotif.message = `Pembayaran untuk ${data.periodLabel || 'periode'} sedang menunggu verifikasi.`;
+            newNotif.reference_type = 'transaction';
             break;
         case 'pembayaran_berhasil':
             newNotif.title = 'Pembayaran Berhasil';
-            newNotif.message = `Pembayaran untuk ${data.periodLabel} telah diverifikasi.`;
-            newNotif.link = 'riwayat';
+            newNotif.message = `Pembayaran untuk ${data.periodLabel || 'periode'} telah diverifikasi.`;
+            newNotif.reference_type = 'transaction';
             break;
         case 'pembayaran_ditolak':
             newNotif.title = 'Pembayaran Ditolak';
-            newNotif.message = `Pembayaran untuk ${data.periodLabel} ditolak. Alasan: ${data.rejectionReason || 'tidak jelas'}.`;
-            newNotif.link = 'riwayat';
+            newNotif.message = `Pembayaran untuk ${data.periodLabel || 'periode'} ditolak. Alasan: ${data.rejectionReason || 'tidak jelas'}.`;
+            newNotif.reference_type = 'transaction';
             break;
         case 'tunggakan':
             newNotif.title = 'Anda memiliki tunggakan';
             newNotif.message = 'Ada periode kas yang belum dibayar atau terlambat.';
-            newNotif.link = 'tunggakan';
+            newNotif.reference_type = 'arrears';
             break;
         case 'pengumuman':
             newNotif.title = 'Pengumuman Baru';
             newNotif.message = `Ada pengumuman baru: ${data.title}`;
-            newNotif.link = 'pengumuman';
+            newNotif.reference_type = 'announcement';
             break;
         default:
             newNotif.title = 'Info';
             newNotif.message = data?.message || 'Info baru';
-            newNotif.link = null;
+            newNotif.reference_type = null;
     }
     state.notifications.unshift(newNotif);
     updateNotifBadge();
@@ -330,6 +350,7 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
             state.currentUser = null;
             state.role = null;
             state.currentUserData = null;
+            resetAppState();
             if (state.currentPage !== 'login') {
                 showToast('Sesi Anda telah berakhir, silakan login kembali', 'warning');
                 navigateTo('login');
@@ -460,7 +481,7 @@ async function loadDataFromServer() {
                 id: a.id,
                 type: a.type,
                 description: a.description,
-                icon: a.icon || '📄',
+                icon: a.icon || 'doc',
                 time: a.created_at
             }));
         }
@@ -571,32 +592,7 @@ async function loadDashboardData() {
         }
 
         if (txRes.transactions) {
-            state.transactions = txRes.transactions.map(t => ({
-                id: t.id,
-                user_id: t.user_id,
-                studentId: t.user_id,
-                studentName: t.student_name,
-                periodId: t.period_id,
-                periodIds: t.period_ids ? (Array.isArray(t.period_ids) ? t.period_ids : String(t.period_ids).split(',').map(Number)) : [],
-                periodLabel: t.period_label || '',
-                frequency: t.frequency || state.cashSettings.frequency,
-                amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
-                total_amount: parseFloat(t.total_amount !== undefined ? t.total_amount : t.amount),
-                method: t.method,
-                date: t.created_at ? t.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-                dateObj: new Date(t.created_at || new Date()),
-                status: t.status,
-                proof: t.proof ? {
-                    id: t.proof.id,
-                    file_name: t.proof.file_name || t.proof.filename,
-                    file_type: t.proof.file_type,
-                    file_size: t.proof.file_size,
-                    url: t.proof.url
-                } : null,
-                rejectionReason: t.rejection_reason,
-                createdAt: t.created_at,
-                verifiedAt: t.verified_at
-            }));
+            state.transactions = txRes.transactions.map(t => normalizeTransaction(t));
         }
 
         return true;
@@ -627,7 +623,7 @@ async function loadNotifications() {
 let isPopState = false;
 
 function navigateTo(page, params=null) {
-    if (page === 'login') { state.currentUser = null; state.historyStack = []; }
+    if (page === 'login') { state.currentUser = null; resetAppState(); }
     if (page !== 'login' && !state.currentUser) page = 'login';
     if (state.currentPage !== page) {
         const mainPages = ['home','kas-saya','pembayaran','riwayat','tunggakan','anggota','transparansi','pengeluaran','pengumuman','notifikasi','aktivitas','kalender','statistik','profil','pengaturan','verifikasi'];
@@ -640,6 +636,9 @@ function navigateTo(page, params=null) {
             state.selectedPeriods = [];
         }
         state.historyStack.push(state.currentPage);
+        if (state.historyStack.length > 25) {
+            state.historyStack.shift();
+        }
     }
     state.currentPage = page;
     state.pageParams = params || {};
@@ -814,6 +813,7 @@ function renderLoginPage() {
 }
 
 async function handleLogin() {
+    resetAppState();
     const username = document.getElementById('loginNis').value.trim();
     const password = document.getElementById('loginPass').value;
     const btn = document.getElementById('btnLogin');
@@ -1524,7 +1524,7 @@ async function markNotificationRead(id) {
 }
 
 async function handleNotificationClick(id) {
-    const notif = state.notifications.find(n => n.id === id);
+    const notif = state.notifications.find(n => n.id == id);
     if (!notif) return;
 
     // Tandai dibaca dulu
@@ -1537,8 +1537,6 @@ async function handleNotificationClick(id) {
         navigateTo('detail-pengumuman', { id: notif.reference_id });
     } else if (notif.reference_type === 'arrears') {
         navigateTo('tunggakan');
-    } else {
-        renderPage();
     }
 }
 
@@ -1567,7 +1565,10 @@ async function markAllNotificationsRead() {
 
 // ==================== AKTIVITAS ====================
 function renderAktivitasPage() {
-    return `${renderHeader('Aktivitas Saya', true)}<div class="container"><div class="card"><div class="timeline">${state.activities.map(a=>`<div class="timeline-item success"><div class="timeline-date">${formatShortDate(a.time)}</div><div class="timeline-content">${a.icon || '📄'} ${escapeHtml(a.description)}</div></div>`).join('')}</div></div></div>`;
+    return `${renderHeader('Aktivitas Saya', true)}<div class="container"><div class="card"><div class="timeline">${state.activities.map(a=>{
+        const iconName = a.icon && iconsSvg[a.icon] ? a.icon : 'receipt';
+        return `<div class="timeline-item success"><div class="timeline-date">${formatShortDate(a.time)}</div><div class="timeline-content">${getIcon(iconName)} ${escapeHtml(a.description)}</div></div>`;
+    }).join('')}</div></div></div>`;
 }
 
 // ==================== KALENDER ====================
@@ -1832,6 +1833,7 @@ async function confirmLogout() {
             state.currentUser = null;
             state.role = null;
             state.currentUserData = null;
+            resetAppState();
             closeModal();
             navigateTo('login');
             showToast('Berhasil keluar', 'success');
@@ -1839,14 +1841,7 @@ async function confirmLogout() {
             showToast(data.error || 'Gagal logout dari server', 'error');
         }
     } catch (err) {
-        // Jangan langsung logout lokal jika server gagal, kecuali network mati total
         showToast('Gagal terhubung ke server saat logout', 'error');
-        // Opsional: tetap boleh logout lokal untuk mencegah user terjebak, 
-        // tapi beri tahu bahwa session server mungkin masih aktif.
-        // Komentar di bawah bisa diaktifkan jika diinginkan.
-        // state.currentUser = null;
-        // closeModal();
-        // navigateTo('login');
     }
 }
 
@@ -1884,6 +1879,7 @@ async function saveEditProfile() {
     const currentPass = document.getElementById('editCurrentPass')?.value || '';
     const newPass = document.getElementById('editNewPass')?.value || '';
     const confirmPass = document.getElementById('editConfirmPass')?.value || '';
+    const btn = document.querySelector('#pageContent .btn-primary');
 
     // Validasi dasar frontend
     if (email && !email.includes('@')) {
@@ -1910,13 +1906,12 @@ async function saveEditProfile() {
         }
     }
 
-    try {
-        const profileData = await apiFetch('update_profile.php', 'POST', { email, phone });
-        if (!profileData.success) {
-            showToast(profileData.error || 'Gagal memperbarui profil', 'error');
-            return;
-        }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan...';
+    }
 
+    try {
         if (newPass) {
             const passData = await apiFetch('change_password.php', 'POST', {
                 current_password: currentPass,
@@ -1928,6 +1923,12 @@ async function saveEditProfile() {
             }
         }
 
+        const profileData = await apiFetch('update_profile.php', 'POST', { email, phone });
+        if (!profileData.success) {
+            showToast(profileData.error || 'Gagal memperbarui profil', 'error');
+            return;
+        }
+
         const user = getCurrentUser();
         user.email = email;
         user.phone = phone;
@@ -1935,6 +1936,11 @@ async function saveEditProfile() {
         navigateTo('profil');
     } catch (err) {
         showToast('Gagal terhubung ke server. Perubahan tidak disimpan.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Simpan';
+        }
     }
 }
 
@@ -1984,7 +1990,9 @@ function renderFaqPage() {
 }
 
 function renderBantuanPage() {
-    return `${renderHeader('Bantuan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Kontak Bendahara</span></div><p>0812-3456-7890</p><a class="btn btn-outline btn-sm mt-8" href="tel:081234567890">Hubungi</a></div><div class="card mb-16"><div class="card-header"><span class="card-title">Wali Kelas</span></div><p>0812-9876-5432</p><a class="btn btn-outline btn-sm mt-8" href="tel:081298765432">Hubungi</a></div><div class="card"><button class="list-item" onclick="navigateTo('faq')"><span>${ic('i-help')}</span> FAQ</button><button class="list-item" onclick="navigateTo('report-problem')">${ic('i-doc')} Laporkan Masalah</button></div></div>`;
+    const bendahara = state.students.find(s => s.role === 'bendahara') || state.students[0];
+    const bendaharaPhone = bendahara?.phone || '0812-3456-7890';
+    return `${renderHeader('Bantuan', true)}<div class="container"><div class="card mb-16"><div class="card-header"><span class="card-title">Kontak Bendahara</span></div><p>${escapeHtml(bendaharaPhone)}</p><a class="btn btn-outline btn-sm mt-8" href="tel:${escapeHtml(bendaharaPhone.replace(/[^0-9+]/g, ''))}">Hubungi</a></div><div class="card"><button class="list-item" onclick="navigateTo('faq')"><span>${ic('i-help')}</span> FAQ</button><button class="list-item" onclick="navigateTo('report-problem')">${ic('i-doc')} Laporkan Masalah</button></div></div>`;
 }
 
 function renderReportProblemPage() {
@@ -1998,6 +2006,7 @@ async function submitReport() {
     const txId = document.getElementById('reportTxId')?.value.trim() || '';
     const fileInput = document.getElementById('reportAttachment');
     const attachment = fileInput?.files[0] || null;
+    const btn = document.querySelector('#pageContent .btn-primary');
 
     if (!title || !desc) { showToast('Isi judul dan deskripsi', 'warning'); return; }
 
@@ -2007,6 +2016,11 @@ async function submitReport() {
     formData.append('description', desc);
     if (txId) formData.append('transaction_id', txId);
     if (attachment) formData.append('attachment', attachment);
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Mengirim...';
+    }
 
     try {
         const data = await apiFetch('reports.php', 'POST', formData, true);
@@ -2019,6 +2033,11 @@ async function submitReport() {
         }
     } catch (err) {
         showToast('Gagal terhubung ke server', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Kirim';
+        }
     }
 }
 
@@ -2690,6 +2709,26 @@ async function initApp() {
         const prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
         toggleTheme(prefers ? 'dark' : 'light');
     }
+
+    const bsOverlay = document.getElementById('bsOverlay');
+    if (bsOverlay) {
+        bsOverlay.addEventListener('click', closeBottomSheet);
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+            closeBottomSheet();
+        }
+    });
+
+    try {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (state.theme === 'system') {
+                toggleTheme(e.matches ? 'dark' : 'light');
+            }
+        });
+    } catch (e) {}
 
     try {
         const userRes = await apiFetch('current_user.php');
