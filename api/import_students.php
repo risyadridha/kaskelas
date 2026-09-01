@@ -50,7 +50,7 @@ if (!$handle) {
 }
 
 // Baca header (baris pertama)
-$header = fgetcsv($handle);
+$header = fgetcsv($handle, 0, ';');
 if (!$header) {
     fclose($handle);
     json_response(['error' => 'File CSV kosong'], 400);
@@ -69,7 +69,7 @@ $successCount = 0;
 $failedRows = [];
 $rowNumber = 1; // baris 1 = header, data mulai baris 2
 
-while (($row = fgetcsv($handle)) !== false) {
+while (($row = fgetcsv($handle, 0, ';')) !== false) {
     $rowNumber++;
     
     // Skip baris kosong

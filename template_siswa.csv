@@ -1,3 +1,3 @@
-nama_lengkap,nis,username,nomor_absen,email,no_hp
-Budi Santoso,24001,budi.santoso,1,,
-Siti Aminah,24002,siti.aminah,2,,
+nama_lengkap;nis;username;nomor_absen;email;no_hp
+Budi Santoso;24001;budi.santoso;1
+Siti Aminah;24002;siti.aminah;2

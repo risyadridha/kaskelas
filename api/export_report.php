@@ -75,17 +75,20 @@ if ($type === 'transactions') {
     }
     $where .= " AND t.status = 'berhasil'";
 
-    $stmt = $pdo->prepare("
-        SELECT t.payment_date, t.created_at, t.total_amount, t.method, t.status, t.verified_at,
-               u.username, s.nis, s.full_name,
-               cp.name AS period_name, cp.frequency
-        FROM transactions t
-        JOIN users u ON u.id = t.user_id
-        LEFT JOIN students s ON s.user_id = u.id
-        LEFT JOIN cash_periods cp ON cp.id = t.period_id
-        $where
-        ORDER BY t.payment_date DESC, t.created_at DESC
-    ");
+   $stmt = $pdo->prepare("
+    SELECT t.payment_date, t.created_at, t.total_amount, t.method, t.status, t.verified_at,
+           u.username, s.nis, s.full_name,
+           GROUP_CONCAT(DISTINCT cp.name ORDER BY cp.id SEPARATOR '; ') AS period_name,
+           MAX(cp.frequency) AS frequency
+    FROM transactions t
+    JOIN users u ON u.id = t.user_id
+    LEFT JOIN students s ON s.user_id = u.id
+    LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+    LEFT JOIN cash_periods cp ON cp.id = ti.period_id
+    $where
+    GROUP BY t.id, t.payment_date, t.created_at, t.total_amount, t.method, t.status, t.verified_at, u.username, s.nis, s.full_name
+    ORDER BY t.payment_date DESC, t.created_at DESC
+");
     $stmt->execute($params);
 
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
