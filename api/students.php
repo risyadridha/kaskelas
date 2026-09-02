@@ -27,7 +27,7 @@ if ($method === 'GET') {
 
     // Ambil semua siswa dalam kelas yang sama
     $stmt = $pdo->prepare("
-        SELECT u.id, u.username, u.role, u.email, u.phone, u.profile_photo, u.status AS user_status,
+        SELECT u.id, u.username, u.role, u.email, u.phone, u.status AS user_status,
                s.nis, s.full_name, s.attendance_number,
                COUNT(DISTINCT CASE WHEN t.status = 'berhasil' THEN ti.period_id END) AS lunas,
                COUNT(DISTINCT CASE WHEN t.status = 'menunggu' THEN ti.period_id END) AS menunggu
@@ -36,7 +36,7 @@ if ($method === 'GET') {
         LEFT JOIN transactions t ON t.user_id = u.id
         LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
         WHERE u.class_id = ?
-        GROUP BY u.id, u.username, u.role, u.email, u.phone, u.profile_photo, u.status, s.nis, s.full_name, s.attendance_number
+        GROUP BY u.id, u.username, u.role, u.email, u.phone, u.status, s.nis, s.full_name, s.attendance_number
         ORDER BY s.attendance_number ASC
     ");
     $stmt->execute([$classId]);

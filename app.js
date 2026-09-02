@@ -45,8 +45,6 @@ const state = {
     transparansiMonth: new Date().getMonth(),
     transparansiYear: new Date().getFullYear(),
     selectedUploadTxId: null,
-    dashboardDataLoaded: false,
-    filterAccountStatus: 'semua'
 };
 
 function resetAppState() {
@@ -65,10 +63,8 @@ function resetAppState() {
     state.filterStatus = 'semua';
     state.filterMethod = 'semua';
     state.filterPeriod = 'semua';
-    state.filterAccountStatus = 'semua';
     state.uploadedFile = null;
     state.selectedUploadTxId = null;
-    state.dashboardDataLoaded = false;
 }
 
 // ==================== SVG ICON SYSTEM ====================
@@ -360,16 +356,6 @@ async function apiFetch(endpoint, method = 'GET', data = null, isFormData = fals
                 navigateTo('login');
             }
         }
-        if (res.status === 403 && json && json.error === 'ACCOUNT_DEACTIVATED') {
-            csrfToken = null;
-            state.currentUser = null;
-            state.role = null;
-            state.currentUserData = null;
-            if (state.currentPage !== 'login') {
-                showToast(json.message || 'Akun Anda telah dinonaktifkan.', 'error');
-                navigateTo('login');
-            }
-        }
         // Token CSRF basi (mis. sesi baru setelah logout) -> paksa ambil ulang di request berikutnya
         if (res.status === 403 && json && typeof json.error === 'string' && /CSRF/i.test(json.error)) {
             csrfToken = null;
@@ -511,8 +497,7 @@ async function loadDataFromServer() {
                 absenNumber: s.attendance_number,
                 kelas: s.kelas || state.currentUserData?.kelas || 'Kelas',
                 status: s.status,
-                user_status: s.user_status || 'active',
-                profile_photo: s.profile_photo || null
+                user_status: s.user_status || 'active'
             }));
         }
 
@@ -610,7 +595,6 @@ async function loadDashboardData() {
             state.transactions = txRes.transactions.map(t => normalizeTransaction(t));
         }
 
-        state.dashboardDataLoaded = true;
         return true;
     } catch (err) {
         console.warn('Gagal memuat data dashboard', err);
@@ -647,7 +631,6 @@ function navigateTo(page, params=null) {
             state.filterStatus = 'semua';
             state.filterMethod = 'semua';
             state.filterPeriod = 'semua';
-            state.filterAccountStatus = 'semua';
             state.sortBy = 'terbaru';
             state.searchQuery = '';
             state.selectedPeriods = [];
@@ -1033,7 +1016,7 @@ function renderKasSayaPage() {
 async function renderPembayaranPage() {
    
     // Muat data dashboard jika periode/transaksi belum ada
-    if (!state.dashboardDataLoaded) {
+    if (state.periods.length === 0 || state.transactions.length === 0) {
         await loadDashboardData();
     }
 
@@ -1400,15 +1383,6 @@ function renderTunggakanPage() {
 // ==================== ANGGOTA ====================
 function renderAnggotaPage() {
     let members = [...state.students];
-    if (state.role !== 'bendahara') {
-        members = members.filter(m => (m.user_status || 'active') === 'active');
-    } else {
-        if (state.filterAccountStatus === 'aktif') {
-            members = members.filter(m => (m.user_status || 'active') === 'active');
-        } else if (state.filterAccountStatus === 'nonaktif') {
-            members = members.filter(m => (m.user_status || 'active') !== 'active');
-        }
-    }
     if (state.filterStatus !== 'semua') members = members.filter(m => m.status === state.filterStatus);
     if (state.searchQuery) members = members.filter(m => m.name.toLowerCase().includes(state.searchQuery.toLowerCase()) || String(m.absenNumber).includes(state.searchQuery));
     if (state.sortBy === 'absen') members.sort((a,b)=>a.absenNumber-b.absenNumber);
@@ -1422,7 +1396,6 @@ function renderAnggotaPage() {
     <div class="container">
         ${state.role==='bendahara'?`<button class="btn btn-primary btn-block mb-16" onclick="showAddStudentModal()">${getIcon('plus')} Tambah Siswa</button>`:''}
         <div class="search-input mb-8"><span style="display:flex">${ic('i-search')}</span><input type="text" id="searchInputAnggota" placeholder="Cari nama atau nomor absen..." value="${state.searchQuery}" oninput="activeInputId='searchInputAnggota'; state.searchQuery=this.value; renderPage()"></div>
-        ${state.role==='bendahara'?`<div class="filter-chips mb-8">${[{id:'semua',label:'Semua'},{id:'aktif',label:'Aktif'},{id:'nonaktif',label:'Nonaktif'}].map(f=>`<button class="chip ${state.filterAccountStatus===f.id?'active':''}" onclick="state.filterAccountStatus='${f.id}';renderPage()">${f.label}</button>`).join('')}</div>`:''}
         <div class="filter-chips mb-8">${['semua','lunas','menunggu','belum','nonaktif'].map(f=>`<button class="chip ${state.filterStatus===f?'active':''}" onclick="state.filterStatus='${f}';renderPage()">${f}</button>`).join('')}</div>
         <div class="filter-chips mb-16"><button class="chip ${state.sortBy==='absen'?'active':''}" onclick="state.sortBy='absen';renderPage()">No. Absen</button><button class="chip ${state.sortBy==='nama-asc'?'active':''}" onclick="state.sortBy='nama-asc';renderPage()">A-Z</button><button class="chip ${state.sortBy==='nama-desc'?'active':''}" onclick="state.sortBy='nama-desc';renderPage()">Z-A</button><button class="chip ${state.sortBy==='status'?'active':''}" onclick="state.sortBy='status';renderPage()">Status</button></div>
         ${members.map(m=>`<div class="card mb-8" onclick="navigateTo('detail-anggota',{id:${m.id}})"><div class="flex items-center gap-12">${getAvatarHtml(m,'avatar-sm')}<div class="flex-1"><p class="item-title">${escapeHtml(m.name)}</p><p class="item-subtitle">Absen ${escapeHtml(String(m.absenNumber).padStart(2,'0'))}</p></div><span class="badge ${badgeMap[m.status] || 'badge-neutral'}">${statusMap[m.status] || escapeHtml(m.status)}</span></div></div>`).join('')}
@@ -1434,10 +1407,7 @@ function renderDetailAnggotaPage() {
     const memberId = state.pageParams.id;
     const member = state.students.find(s => s.id == memberId);
     if (!member) return `${renderHeader('Detail Anggota', true)}<div class="container"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Anggota tidak ditemukan</div></div></div>`;
-    const actionBtn = member.user_status === 'active'
-        ? `<button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button>`
-        : `<button class="btn btn-primary flex-1" onclick="doActivateStudent(${member.id})">Aktifkan Kembali</button>`;
-    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button>${actionBtn}</div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?ic('i-checkc'):st==='menunggu'?ic('i-clock'):ic('i-alert')}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
+    return `${renderHeader('Detail Anggota', true)}<div class="container">${state.role==='bendahara'?`<div class="flex gap-8 mb-16"><button class="btn btn-outline flex-1" onclick="showEditStudentModal(${member.id})">Edit</button><button class="btn btn-danger flex-1" onclick="confirmDeactivateStudent(${member.id})">Nonaktifkan</button></div>`:''}<div class="text-center mb-16">${getAvatarHtml(member,'avatar-lg')}<h2 style="font-size:20px;font-weight:800;margin-top:8px;">${escapeHtml(member.name)}</h2><p style="font-size:13px;color:var(--text-secondary);">${escapeHtml(member.kelas || 'Kelas')} • Absen ${escapeHtml(member.absenNumber)}</p></div><div class="card mb-16"><div class="card-header"><span class="card-title">Informasi</span></div><p>NIS: ${escapeHtml(member.nis || '-')}</p><p>Email: ${escapeHtml(member.email || '-')}</p><p>Phone: ${escapeHtml(member.phone || '-')}</p></div><div class="card"><div class="card-header"><span class="card-title">Timeline Pembayaran</span></div>${state.periods.slice(0,8).map(p=>{ const st=getPeriodStatusForUser(p.id,member.id); return `<div class="list-item" style="border-bottom:1px solid var(--border);border-radius:0;"><span>${st==='lunas'?ic('i-checkc'):st==='menunggu'?ic('i-clock'):ic('i-alert')}</span><div class="item-info"><div class="item-title">${escapeHtml(p.label)}</div></div><span class="badge ${getStatusBadgeClass(st)}">${getStatusLabel(st)}</span></div>`; }).join('')}</div></div>`;
 }
 
 // ==================== TRANSPARANSI ====================
@@ -2572,7 +2542,7 @@ function confirmDeactivateStudent(userId) {
     if (!s) return;
     showModal(`
         <h3>Nonaktifkan Siswa?</h3>
-        <p>Nonaktifkan akun ${escapeHtml(s.name)}? Siswa ini tidak akan bisa login lagi, tapi seluruh riwayat pembayaran dan datanya tetap tersimpan (tidak dihapus).</p>
+        <p>Akun "${escapeHtml(s.name)}" dinonaktifkan. Riwayat pembayaran tetap tersimpan.</p>
         <div class="flex gap-8 mt-16">
             <button class="btn btn-outline flex-1" onclick="closeModal()">Batal</button>
             <button class="btn btn-danger flex-1" onclick="doDeactivateStudent(${s.id})">Nonaktifkan</button>
@@ -2593,20 +2563,6 @@ async function doDeactivateStudent(userId) {
     } catch (e) {
         showToast('Gagal terhubung ke server', 'error');
         closeModal();
-    }
-}
-
-async function doActivateStudent(userId) {
-    try {
-        const res = await apiFetch('students.php', 'PUT', { user_id: userId, status: 'active' });
-        if (res.success) {
-            showToast('Akun berhasil diaktifkan kembali', 'success');
-            await loadDataFromServer(); renderPage();
-        } else {
-            showToast(res.error || 'Gagal mengaktifkan akun', 'error');
-        }
-    } catch (e) {
-        showToast('Gagal terhubung ke server', 'error');
     }
 }
 
