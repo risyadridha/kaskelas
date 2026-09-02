@@ -59,7 +59,7 @@ if ($type === 'transactions') {
     fputcsv($output, [
         'Tanggal', 'Siswa', 'NIS', 'Periode', 'Frekuensi', 
         'Jumlah', 'Metode', 'Status', 'Tanggal Verifikasi'
-    ]);
+    ], ';');
 
     // Query transaksi dengan filter tanggal dan kelas
     $where = "WHERE u.class_id = ?";
@@ -111,14 +111,14 @@ if ($type === 'transactions') {
             strtoupper($row['method'] ?? '-'),
             $statusLabel,
             $row['verified_at'] ?? '-'
-        ]);
+        ], ';');
     }
 } else {
     // Header CSV untuk pengeluaran
     fputcsv($output, [
         'Tanggal', 'Nama Pengeluaran', 'Kategori', 'Jumlah', 
         'Deskripsi', 'Dibuat Oleh', 'Ada Nota'
-    ]);
+    ], ';');
 
     $where = "WHERE e.class_id = ?";
     $params = [$classId];
@@ -160,7 +160,7 @@ if ($type === 'transactions') {
             $row['description'] ?? '-',
             $row['created_by_name'] ?? '-',
             $row['receipt_file'] ? 'Ya' : 'Tidak'
-        ]);
+        ], ';');
     }
 }
 
