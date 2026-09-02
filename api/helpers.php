@@ -8,8 +8,19 @@ function json_response($data, $status = 200) {
 }
 
 function require_login() {
+    global $pdo;
     if (!isset($_SESSION['user_id'])) {
         json_response(['error' => 'Unauthorized'], 401);
+    }
+    $stmt = $pdo->prepare("SELECT status FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $userStatus = $stmt->fetchColumn();
+    if ($userStatus !== 'active') {
+        session_destroy();
+        json_response([
+            'error' => 'ACCOUNT_DEACTIVATED',
+            'message' => 'Akun Anda telah dinonaktifkan oleh bendahara kelas. Silakan hubungi bendahara jika ini adalah kesalahan.'
+        ], 403);
     }
 }
 
